@@ -152,10 +152,24 @@ const state = {
   phraseFilter: "all",
   recognition: null,
   recognizing: false,
-  stats: loadStats(),
+  currentUser: null,
+  authMode: "login",
+  deferredInstallPrompt: null,
+  productReady: false,
+  stats: null,
 };
 
 const els = {
+  authScreen: document.querySelector("#authScreen"),
+  authForm: document.querySelector("#authForm"),
+  authUsername: document.querySelector("#authUsername"),
+  authPassword: document.querySelector("#authPassword"),
+  authSubmitButton: document.querySelector("#authSubmitButton"),
+  authModeButton: document.querySelector("#authModeButton"),
+  authMessage: document.querySelector("#authMessage"),
+  accountName: document.querySelector("#accountName"),
+  installAppButton: document.querySelector("#installAppButton"),
+  logoutButton: document.querySelector("#logoutButton"),
   todayMinutes: document.querySelector("#todayMinutes"),
   minuteBar: document.querySelector("#minuteBar"),
   languageSelect: document.querySelector("#languageSelect"),
@@ -189,6 +203,10 @@ const els = {
 const SpeechRecognition =
   window.SpeechRecognition || window.webkitSpeechRecognition || null;
 
+const ACCOUNT_KEY = "speaklift.accounts";
+const SESSION_KEY = "speaklift.sessionUser";
+const LEGACY_STATS_KEY = "speaklift.stats";
+
 function loadStats() {
   const fallback = {
     mastered: [],
@@ -197,10 +215,12 @@ function loadStats() {
     history: [],
   };
 
+  if (!state.currentUser) return fallback;
+
   try {
     return {
       ...fallback,
-      ...JSON.parse(localStorage.getItem("speaklift.stats") || "{}"),
+      ...JSON.parse(localStorage.getItem(statsKey()) || "{}"),
     };
   } catch {
     return fallback;
@@ -208,7 +228,138 @@ function loadStats() {
 }
 
 function saveStats() {
-  localStorage.setItem("speaklift.stats", JSON.stringify(state.stats));
+  if (!state.currentUser || !state.stats) return;
+  localStorage.setItem(statsKey(), JSON.stringify(state.stats));
+}
+
+function statsKey(username = state.currentUser) {
+  return `speaklift.stats.${username}`;
+}
+
+function readAccounts() {
+  try {
+    return JSON.parse(localStorage.getItem(ACCOUNT_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeAccounts(accounts) {
+  localStorage.setItem(ACCOUNT_KEY, JSON.stringify(accounts));
+}
+
+function normalizeUsername(value) {
+  return value.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
+function randomSalt() {
+  const bytes = new Uint8Array(16);
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    bytes.forEach((_, index) => {
+      bytes[index] = Math.floor(Math.random() * 256);
+    });
+  }
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function hashPassword(password, salt) {
+  const data = new TextEncoder().encode(`${salt}:${password}`);
+  if (globalThis.crypto?.subtle) {
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  let hash = 2166136261;
+  data.forEach((byte) => {
+    hash ^= byte;
+    hash = Math.imul(hash, 16777619);
+  });
+  return `local-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+function setAuthMode(mode) {
+  state.authMode = mode;
+  const isRegister = mode === "register";
+  els.authSubmitButton.textContent = isRegister ? "注册并进入" : "登录";
+  els.authModeButton.textContent = isRegister ? "已有账号登录" : "新用户注册";
+  els.authPassword.autocomplete = isRegister ? "new-password" : "current-password";
+  els.authMessage.textContent = "";
+}
+
+async function handleAuthSubmit(event) {
+  event.preventDefault();
+  const username = normalizeUsername(els.authUsername.value);
+  const password = els.authPassword.value;
+  if (username.length < 2 || password.length < 6) {
+    els.authMessage.textContent = "账号至少 2 位，密码至少 6 位。";
+    return;
+  }
+
+  const accounts = readAccounts();
+  if (state.authMode === "register") {
+    if (accounts[username]) {
+      els.authMessage.textContent = "这个账号已经存在，直接登录即可。";
+      return;
+    }
+
+    const salt = randomSalt();
+    accounts[username] = {
+      salt,
+      passwordHash: await hashPassword(password, salt),
+      createdAt: Date.now(),
+    };
+    writeAccounts(accounts);
+    migrateLegacyStats(username);
+    unlockApp(username);
+    showToast("账号已创建，开始今天的练习。");
+    return;
+  }
+
+  const account = accounts[username];
+  if (!account || account.passwordHash !== (await hashPassword(password, account.salt))) {
+    els.authMessage.textContent = "账号或密码不正确。";
+    return;
+  }
+
+  unlockApp(username);
+}
+
+function migrateLegacyStats(username) {
+  if (localStorage.getItem(statsKey(username)) || !localStorage.getItem(LEGACY_STATS_KEY)) return;
+  localStorage.setItem(statsKey(username), localStorage.getItem(LEGACY_STATS_KEY));
+}
+
+function unlockApp(username) {
+  state.currentUser = username;
+  sessionStorage.setItem(SESSION_KEY, username);
+  state.stats = loadStats();
+  els.accountName.textContent = username;
+  document.body.classList.remove("auth-locked");
+  initProduct();
+}
+
+function logout() {
+  saveStats();
+  state.currentUser = null;
+  state.stats = null;
+  sessionStorage.removeItem(SESSION_KEY);
+  els.accountName.textContent = "未登录";
+  els.authPassword.value = "";
+  setAuthMode("login");
+  document.body.classList.add("auth-locked");
+  window.speechSynthesis?.cancel();
+}
+
+function restoreSession() {
+  const username = sessionStorage.getItem(SESSION_KEY);
+  if (username && readAccounts()[username]) {
+    unlockApp(username);
+    return;
+  }
+  document.body.classList.add("auth-locked");
+  els.authUsername.focus();
 }
 
 function todayKey() {
@@ -582,6 +733,42 @@ function bindEvents() {
   });
 }
 
+function bindAuthEvents() {
+  els.authForm.addEventListener("submit", handleAuthSubmit);
+  els.authModeButton.addEventListener("click", () => {
+    setAuthMode(state.authMode === "login" ? "register" : "login");
+  });
+  els.logoutButton.addEventListener("click", logout);
+  els.installAppButton.addEventListener("click", installApp);
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    state.deferredInstallPrompt = event;
+  });
+
+  window.addEventListener("appinstalled", () => {
+    state.deferredInstallPrompt = null;
+    showToast("SpeakLift 已安装。");
+  });
+}
+
+async function installApp() {
+  if (window.matchMedia("(display-mode: standalone)").matches || navigator.standalone) {
+    showToast("当前已经是 App 模式。");
+    return;
+  }
+
+  if (state.deferredInstallPrompt) {
+    state.deferredInstallPrompt.prompt();
+    const choice = await state.deferredInstallPrompt.userChoice;
+    state.deferredInstallPrompt = null;
+    showToast(choice.outcome === "accepted" ? "已开始安装。" : "已取消安装。");
+    return;
+  }
+
+  showToast("电脑端可用浏览器地址栏的安装图标；手机端用浏览器菜单添加到主屏幕。");
+}
+
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {
@@ -590,14 +777,23 @@ function registerServiceWorker() {
   }
 }
 
-function init() {
-  populateScenarios();
-  bindEvents();
+function initProduct() {
+  if (!state.productReady) {
+    populateScenarios();
+    bindEvents();
+    state.productReady = true;
+  }
   renderLesson();
   renderDialogue();
   renderPhrases();
   renderStats();
+}
+
+function init() {
+  setAuthMode("login");
+  bindAuthEvents();
   registerServiceWorker();
+  restoreSession();
 }
 
 init();
