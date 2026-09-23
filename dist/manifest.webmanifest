@@ -1,0 +1,15 @@
+{
+  "name": "SpeakLift 英语粤语口语练习",
+  "short_name": "SpeakLift",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f7f3ea",
+  "theme_color": "#135f63",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

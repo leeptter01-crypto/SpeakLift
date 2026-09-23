@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SpeakLift 英语粤语口语练习</title>
+    <meta name="description" content="零基础英语和粤语口语练习工具，包含跟读、场景对话、发音提示和本地进度记录。" />
+    <meta name="theme-color" content="#135f63" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#practice" aria-label="SpeakLift 首页">
+          <span class="brand-mark" aria-hidden="true">SL</span>
+          <span>
+            <span class="brand-name">SpeakLift</span>
+            <span class="brand-subtitle">英语 / 粤语口语</span>
+          </span>
+        </a>
+        <nav class="topnav" aria-label="主要功能">
+          <a href="#practice">练习</a>
+          <a href="#dialogue">对话</a>
+          <a href="#phrases">句库</a>
+          <a href="#progress">进度</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="workspace" id="practice" aria-labelledby="practice-title">
+          <div class="coach-panel">
+            <div class="panel-heading">
+              <p class="eyebrow">今日 15 分钟</p>
+              <h1 id="practice-title">先敢开口，再练准确</h1>
+              <p class="lead">选一个场景，听一遍，跟读一遍，再换成自己的回答。每次练完都记录在本机。</p>
+            </div>
+
+            <div class="daily-meter" aria-label="今日练习进度">
+              <div>
+                <strong id="todayMinutes">0</strong>
+                <span>分钟</span>
+              </div>
+              <div class="meter-track" aria-hidden="true">
+                <span id="minuteBar"></span>
+              </div>
+              <span class="target">目标 15 分钟</span>
+            </div>
+
+            <div class="control-grid" aria-label="练习设置">
+              <label>
+                <span>练习语言</span>
+                <select id="languageSelect">
+                  <option value="english">英语</option>
+                  <option value="cantonese">粤语</option>
+                  <option value="mixed">英语 + 粤语</option>
+                </select>
+              </label>
+              <label>
+                <span>场景</span>
+                <select id="scenarioSelect"></select>
+              </label>
+              <label>
+                <span>难度</span>
+                <select id="levelSelect">
+                  <option value="starter">零基础</option>
+                  <option value="daily">日常交流</option>
+                  <option value="work">工作表达</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="trainer-card" aria-live="polite">
+            <div class="trainer-toolbar">
+              <div>
+                <p class="eyebrow" id="scenarioTag">入门</p>
+                <h2 id="lineTitle">打招呼</h2>
+              </div>
+              <button class="icon-button" id="nextLineButton" type="button" aria-label="换一句">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="phrase-stage">
+              <p class="target-line" id="targetLine">Hello, nice to meet you.</p>
+              <p class="romanization" id="romanization">heh-loh, nice tuh meet yoo</p>
+              <p class="meaning" id="meaning">你好，很高兴认识你。</p>
+            </div>
+
+            <div class="wave-card" aria-label="口语节奏">
+              <canvas id="waveCanvas" width="760" height="160"></canvas>
+            </div>
+
+            <div class="action-row">
+              <button class="primary-action" id="listenButton" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+                  <path d="M16 9.5a4 4 0 0 1 0 5" />
+                  <path d="M19 7a8 8 0 0 1 0 10" />
+                </svg>
+                听标准朗读
+              </button>
+              <button class="primary-action record" id="recordButton" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3Z" />
+                  <path d="M5 11a7 7 0 0 0 14 0" />
+                  <path d="M12 18v3" />
+                </svg>
+                开始跟读
+              </button>
+              <button class="ghost-action" id="masteredButton" type="button">我会说了</button>
+            </div>
+
+            <div class="feedback-panel">
+              <div>
+                <span class="small-label">识别结果</span>
+                <p id="transcript">点击“开始跟读”，说完后会看到反馈。</p>
+              </div>
+              <div class="score-badge">
+                <strong id="scoreValue">--</strong>
+                <span>匹配度</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section-grid" id="dialogue" aria-labelledby="dialogue-title">
+          <div class="section-heading">
+            <p class="eyebrow">角色对话</p>
+            <h2 id="dialogue-title">像聊天一样练反应</h2>
+          </div>
+          <div class="dialogue-board">
+            <div class="chat-window" id="chatWindow" aria-live="polite"></div>
+            <div class="reply-box">
+              <textarea id="customReply" rows="3" placeholder="写下或说出你的回答，再对照建议表达。"></textarea>
+              <div class="reply-actions">
+                <button class="primary-action" id="suggestReplyButton" type="button">看建议回答</button>
+                <button class="ghost-action" id="nextDialogueButton" type="button">换个对话</button>
+              </div>
+            </div>
+          </div>
+          <aside class="side-stack" aria-label="学习路线">
+            <article class="mini-card">
+              <span class="step-number">1</span>
+              <h3>短句先行</h3>
+              <p>每天只抓 8 到 12 句，先让嘴巴习惯节奏。</p>
+            </article>
+            <article class="mini-card">
+              <span class="step-number">2</span>
+              <h3>场景复用</h3>
+              <p>同一句换地点、换对象、换语气，交流会快很多。</p>
+            </article>
+            <article class="mini-card">
+              <span class="step-number">3</span>
+              <h3>录音回听</h3>
+              <p>只改一个点：尾音、声调或停顿。别一次改太多。</p>
+            </article>
+          </aside>
+        </section>
+
+        <section class="phrase-section" id="phrases" aria-labelledby="phrases-title">
+          <div class="section-heading">
+            <p class="eyebrow">句库</p>
+            <h2 id="phrases-title">从能马上用的句子开始</h2>
+          </div>
+          <div class="phrase-tools">
+            <input id="phraseSearch" type="search" placeholder="搜索：咖啡、问路、介绍、工作..." />
+            <div class="segmented" role="group" aria-label="句库筛选">
+              <button type="button" class="active" data-filter="all">全部</button>
+              <button type="button" data-filter="english">英语</button>
+              <button type="button" data-filter="cantonese">粤语</button>
+            </div>
+          </div>
+          <div class="phrase-list" id="phraseList"></div>
+        </section>
+
+        <section class="progress-section" id="progress" aria-labelledby="progress-title">
+          <div class="section-heading">
+            <p class="eyebrow">进度</p>
+            <h2 id="progress-title">把开口变成习惯</h2>
+          </div>
+          <div class="stats-grid">
+            <article>
+              <span>连续练习</span>
+              <strong id="streakDays">0 天</strong>
+            </article>
+            <article>
+              <span>已掌握句子</span>
+              <strong id="masteredCount">0 句</strong>
+            </article>
+            <article>
+              <span>跟读次数</span>
+              <strong id="attemptCount">0 次</strong>
+            </article>
+          </div>
+          <div class="history-card">
+            <h3>最近练习</h3>
+            <ul id="historyList"></ul>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
