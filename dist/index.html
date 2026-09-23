@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#135f63" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=4" />
   </head>
   <body class="auth-locked">
     <section class="auth-screen" id="authScreen" aria-labelledby="authTitle">
@@ -27,8 +27,29 @@
         </div>
         <form class="auth-form" id="authForm">
           <label>
-            <span>账号</span>
-            <input id="authUsername" name="username" autocomplete="username" required minlength="2" maxlength="32" />
+            <span>注册方式</span>
+            <select id="authMethod" name="method">
+              <option value="email">邮箱</option>
+              <option value="phone">手机号</option>
+              <option value="wechat">微信号</option>
+              <option value="qq">QQ</option>
+              <option value="weibo">微博</option>
+              <option value="douyin">抖音</option>
+              <option value="xiaohongshu">小红书</option>
+              <option value="google">Google</option>
+              <option value="apple">Apple</option>
+              <option value="facebook">Facebook</option>
+              <option value="x">X</option>
+              <option value="linkedin">LinkedIn</option>
+            </select>
+          </label>
+          <label>
+            <span id="authIdentifierLabel">邮箱</span>
+            <input id="authUsername" name="username" autocomplete="username" required minlength="2" maxlength="80" placeholder="name@example.com" />
+          </label>
+          <label id="authDisplayNameWrap">
+            <span>昵称</span>
+            <input id="authDisplayName" name="displayName" autocomplete="nickname" maxlength="32" placeholder="练习时显示的名字" />
           </label>
           <label>
             <span>密码</span>
@@ -54,6 +75,7 @@
         <nav class="topnav" aria-label="主要功能">
           <a href="#practice">练习</a>
           <a href="#dialogue">对话</a>
+          <a href="#curriculum">TOEFL</a>
           <a href="#phrases">句库</a>
           <a href="#progress">进度</a>
         </nav>
@@ -86,6 +108,14 @@
 
             <div class="control-grid" aria-label="练习设置">
               <label>
+                <span>练习模式</span>
+                <select id="studyModeSelect">
+                  <option value="scene">场景口语</option>
+                  <option value="toefl">TOEFL 21 天</option>
+                  <option value="review">巩固队列</option>
+                </select>
+              </label>
+              <label>
                 <span>练习语言</span>
                 <select id="languageSelect">
                   <option value="english">英语</option>
@@ -105,6 +135,14 @@
                   <option value="work">工作表达</option>
                 </select>
               </label>
+            </div>
+
+            <div class="stage-bridge" aria-label="阶段衔接">
+              <div>
+                <span class="small-label">下一步</span>
+                <p id="stageBridgeText">先把今天的目标句读到 95 分，再进入下一段。</p>
+              </div>
+              <button class="ghost-action compact-action" id="startReviewButton" type="button">做巩固</button>
             </div>
           </div>
 
@@ -148,7 +186,7 @@
                 </svg>
                 开始跟读
               </button>
-              <button class="ghost-action" id="masteredButton" type="button">我会说了</button>
+              <button class="ghost-action" id="masteredButton" type="button">暂存巩固</button>
             </div>
 
             <div class="feedback-panel">
@@ -161,6 +199,39 @@
                 <span>匹配度</span>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section class="curriculum-section" id="curriculum" aria-labelledby="curriculum-title">
+          <div class="section-heading">
+            <p class="eyebrow">TOEFL 21 天</p>
+            <h2 id="curriculum-title">词汇、语法、词组、句子连起来练</h2>
+          </div>
+          <div class="curriculum-board">
+            <article class="curriculum-card">
+              <div class="curriculum-controls">
+                <label>
+                  <span>天数</span>
+                  <select id="toeflDaySelect"></select>
+                </label>
+                <label>
+                  <span>阶段</span>
+                  <select id="toeflStageSelect">
+                    <option value="0">1 词汇到词组</option>
+                    <option value="1">2 语法到句子</option>
+                    <option value="2">3 口语输出</option>
+                  </select>
+                </label>
+              </div>
+              <div class="toefl-focus" id="toeflFocus"></div>
+              <p class="source-note">当前为原创 TOEFL 风格训练框架；可在你拥有授权的前提下导入书中摘录。</p>
+            </article>
+            <article class="curriculum-card review-card">
+              <span class="small-label">95 分门槛</span>
+              <h3 id="reviewQueueTitle">巩固队列 0 项</h3>
+              <p id="reviewQueueText">低于 95 分的跟读会自动累积，下次可一次性巩固。</p>
+              <div class="queue-list" id="reviewQueueList"></div>
+            </article>
           </div>
         </section>
 
@@ -242,6 +313,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js" type="module"></script>
+    <script src="./app.js?v=4" type="module"></script>
   </body>
 </html>

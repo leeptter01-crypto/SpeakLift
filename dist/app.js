@@ -146,10 +146,66 @@ const dialogues = [
   },
 ];
 
+const PASS_SCORE = 95;
+
+const registerMethods = {
+  email: { label: "邮箱", placeholder: "name@example.com" },
+  phone: { label: "手机号", placeholder: "13800138000" },
+  wechat: { label: "微信号", placeholder: "WeChat ID" },
+  qq: { label: "QQ", placeholder: "QQ 号" },
+  weibo: { label: "微博", placeholder: "微博账号" },
+  douyin: { label: "抖音", placeholder: "抖音号" },
+  xiaohongshu: { label: "小红书", placeholder: "小红书号" },
+  google: { label: "Google", placeholder: "Google 邮箱" },
+  apple: { label: "Apple", placeholder: "Apple ID 邮箱" },
+  facebook: { label: "Facebook", placeholder: "Facebook 邮箱或账号" },
+  x: { label: "X", placeholder: "@handle" },
+  linkedin: { label: "LinkedIn", placeholder: "LinkedIn 邮箱或主页名" },
+};
+
+const toeflPlan = [
+  ["analysis", "分析", "cause and effect", "名词化表达", "Careful analysis can reveal the cause and effect behind a policy."],
+  ["assume", "假设", "assume responsibility", "宾语从句", "Researchers assume that the sample represents the wider population."],
+  ["benefit", "益处", "long-term benefit", "让步从句", "Although the cost is high, the long-term benefit is clear."],
+  ["contrast", "对比", "in contrast to", "比较结构", "In contrast to the first theory, the second one explains the exception."],
+  ["decline", "下降", "a steady decline", "趋势描述", "The chart shows a steady decline in the number of native species."],
+  ["evidence", "证据", "supporting evidence", "定语从句", "The evidence that supports this claim comes from several field studies."],
+  ["factor", "因素", "a major factor", "原因表达", "Climate is a major factor that affects migration patterns."],
+  ["hypothesis", "假设", "test a hypothesis", "目的状语", "The team designed an experiment to test a hypothesis."],
+  ["illustrate", "说明", "illustrate a point", "举例结构", "This example illustrates why memory is shaped by context."],
+  ["justify", "证明合理", "justify a decision", "情态动词", "The professor must justify the decision with reliable data."],
+  ["maintain", "维持", "maintain balance", "并列结构", "Wetlands store water and maintain balance in the ecosystem."],
+  ["obtain", "获得", "obtain information", "被动语态", "Accurate information can be obtained through repeated observation."],
+  ["predict", "预测", "predict an outcome", "条件句", "If the temperature rises, scientists can predict a different outcome."],
+  ["relevant", "相关的", "relevant detail", "主系表", "Only relevant details are useful in a short academic response."],
+  ["significant", "显著的", "a significant change", "强调结构", "The most significant change occurred after the new method was used."],
+  ["theory", "理论", "challenge a theory", "转折连接", "The new data challenges a theory, but it does not replace it."],
+  ["variable", "变量", "control a variable", "不定式", "Scientists control a variable to make the comparison fair."],
+  ["adapt", "适应", "adapt to change", "结果状语", "Plants adapt to change so that they can survive in dry regions."],
+  ["complex", "复杂的", "a complex process", "解释结构", "Language learning is a complex process because it combines memory and use."],
+  ["derive", "获得、源于", "derive from evidence", "介词短语", "A strong conclusion should derive from evidence rather than opinion."],
+  ["establish", "建立", "establish a pattern", "总结表达", "After several examples, the speaker can establish a clear pattern."],
+].map(([word, meaning, phrase, grammar, sentence], index) => ({
+  day: index + 1,
+  theme: `Day ${index + 1}`,
+  word,
+  meaning,
+  phrase,
+  grammar,
+  sentence,
+  prompt: `Use ${word} and ${phrase} to answer in one complete sentence.`,
+  keywords: [word, ...phrase.split(" ").filter((part) => part.length > 2)],
+}));
+
+const toeflStages = ["词汇到词组", "语法到句子", "口语输出"];
+
 const state = {
   lineIndex: 0,
   dialogueIndex: 0,
   phraseFilter: "all",
+  studyMode: "scene",
+  toeflDay: 1,
+  toeflStage: 0,
   recognition: null,
   recognizing: false,
   currentUser: null,
@@ -162,7 +218,11 @@ const state = {
 const els = {
   authScreen: document.querySelector("#authScreen"),
   authForm: document.querySelector("#authForm"),
+  authMethod: document.querySelector("#authMethod"),
   authUsername: document.querySelector("#authUsername"),
+  authIdentifierLabel: document.querySelector("#authIdentifierLabel"),
+  authDisplayName: document.querySelector("#authDisplayName"),
+  authDisplayNameWrap: document.querySelector("#authDisplayNameWrap"),
   authPassword: document.querySelector("#authPassword"),
   authSubmitButton: document.querySelector("#authSubmitButton"),
   authModeButton: document.querySelector("#authModeButton"),
@@ -172,6 +232,7 @@ const els = {
   logoutButton: document.querySelector("#logoutButton"),
   todayMinutes: document.querySelector("#todayMinutes"),
   minuteBar: document.querySelector("#minuteBar"),
+  studyModeSelect: document.querySelector("#studyModeSelect"),
   languageSelect: document.querySelector("#languageSelect"),
   scenarioSelect: document.querySelector("#scenarioSelect"),
   levelSelect: document.querySelector("#levelSelect"),
@@ -186,6 +247,14 @@ const els = {
   nextLineButton: document.querySelector("#nextLineButton"),
   transcript: document.querySelector("#transcript"),
   scoreValue: document.querySelector("#scoreValue"),
+  stageBridgeText: document.querySelector("#stageBridgeText"),
+  startReviewButton: document.querySelector("#startReviewButton"),
+  toeflDaySelect: document.querySelector("#toeflDaySelect"),
+  toeflStageSelect: document.querySelector("#toeflStageSelect"),
+  toeflFocus: document.querySelector("#toeflFocus"),
+  reviewQueueTitle: document.querySelector("#reviewQueueTitle"),
+  reviewQueueText: document.querySelector("#reviewQueueText"),
+  reviewQueueList: document.querySelector("#reviewQueueList"),
   chatWindow: document.querySelector("#chatWindow"),
   customReply: document.querySelector("#customReply"),
   suggestReplyButton: document.querySelector("#suggestReplyButton"),
@@ -213,6 +282,13 @@ function loadStats() {
     attempts: 0,
     minutesByDate: {},
     history: [],
+    bestScores: {},
+    reviewQueue: [],
+    stageProgress: {
+      day: 1,
+      stage: 0,
+      completed: {},
+    },
   };
 
   if (!state.currentUser) return fallback;
@@ -248,8 +324,44 @@ function writeAccounts(accounts) {
   localStorage.setItem(ACCOUNT_KEY, JSON.stringify(accounts));
 }
 
-function normalizeUsername(value) {
-  return value.trim().toLowerCase().replace(/\s+/g, "-");
+function normalizeIdentifier(value, method = els.authMethod.value) {
+  const trimmed = value.trim();
+  if (method === "phone") return trimmed.replace(/[^\d+]/g, "");
+  if (method === "x") return trimmed.replace(/^@+/, "").toLowerCase();
+  return trimmed.toLowerCase().replace(/\s+/g, "-");
+}
+
+function accountKey(method, identifier) {
+  return `${method}:${normalizeIdentifier(identifier, method)}`;
+}
+
+function validateIdentifier(method, identifier) {
+  if (method === "email" || method === "google" || method === "apple") {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
+  }
+  if (method === "phone") {
+    return /^\+?\d{6,20}$/.test(identifier);
+  }
+  return identifier.length >= 2;
+}
+
+function methodLabel(method) {
+  return registerMethods[method]?.label || "账号";
+}
+
+function formatAccountName(account, key = state.currentUser) {
+  const fallback = key?.includes(":") ? key.split(":").slice(1).join(":") : key;
+  if (!account) return fallback || "已登录";
+  if (account.displayName) return account.displayName;
+  if (account.identifier) return `${methodLabel(account.method)} ${account.identifier}`;
+  return fallback || account.username || "已登录";
+}
+
+function updateAuthMethodUi() {
+  const method = els.authMethod.value;
+  const meta = registerMethods[method] || registerMethods.email;
+  els.authIdentifierLabel.textContent = meta.label;
+  els.authUsername.placeholder = meta.placeholder;
 }
 
 function randomSalt() {
@@ -285,45 +397,52 @@ function setAuthMode(mode) {
   els.authSubmitButton.textContent = isRegister ? "注册并进入" : "登录";
   els.authModeButton.textContent = isRegister ? "已有账号登录" : "新用户注册";
   els.authPassword.autocomplete = isRegister ? "new-password" : "current-password";
+  els.authDisplayNameWrap.hidden = !isRegister;
+  els.authDisplayNameWrap.style.display = isRegister ? "grid" : "none";
   els.authMessage.textContent = "";
 }
 
 async function handleAuthSubmit(event) {
   event.preventDefault();
-  const username = normalizeUsername(els.authUsername.value);
+  const method = els.authMethod.value;
+  const identifier = normalizeIdentifier(els.authUsername.value, method);
+  const key = accountKey(method, identifier);
   const password = els.authPassword.value;
-  if (username.length < 2 || password.length < 6) {
-    els.authMessage.textContent = "账号至少 2 位，密码至少 6 位。";
+  if (!validateIdentifier(method, identifier) || password.length < 6) {
+    els.authMessage.textContent = `${methodLabel(method)}格式不正确，密码至少 6 位。`;
     return;
   }
 
   const accounts = readAccounts();
   if (state.authMode === "register") {
-    if (accounts[username]) {
+    if (accounts[key]) {
       els.authMessage.textContent = "这个账号已经存在，直接登录即可。";
       return;
     }
 
     const salt = randomSalt();
-    accounts[username] = {
+    accounts[key] = {
+      method,
+      identifier,
+      displayName: els.authDisplayName.value.trim() || identifier,
       salt,
       passwordHash: await hashPassword(password, salt),
       createdAt: Date.now(),
     };
     writeAccounts(accounts);
-    migrateLegacyStats(username);
-    unlockApp(username);
+    migrateLegacyStats(key);
+    unlockApp(key);
     showToast("账号已创建，开始今天的练习。");
     return;
   }
 
-  const account = accounts[username];
+  const account = accounts[key];
   if (!account || account.passwordHash !== (await hashPassword(password, account.salt))) {
     els.authMessage.textContent = "账号或密码不正确。";
     return;
   }
 
-  unlockApp(username);
+  unlockApp(key);
 }
 
 function migrateLegacyStats(username) {
@@ -331,13 +450,32 @@ function migrateLegacyStats(username) {
   localStorage.setItem(statsKey(username), localStorage.getItem(LEGACY_STATS_KEY));
 }
 
-function unlockApp(username) {
-  state.currentUser = username;
-  sessionStorage.setItem(SESSION_KEY, username);
-  state.stats = loadStats();
-  els.accountName.textContent = username;
+function unlockApp(key) {
+  state.currentUser = key;
+  sessionStorage.setItem(SESSION_KEY, key);
+  state.stats = normalizeStats(loadStats());
+  const account = readAccounts()[key];
+  els.accountName.textContent = formatAccountName(account, key);
+  state.toeflDay = state.stats.stageProgress?.day || 1;
+  state.toeflStage = state.stats.stageProgress?.stage || 0;
   document.body.classList.remove("auth-locked");
   initProduct();
+}
+
+function normalizeStats(stats) {
+  return {
+    mastered: stats.mastered || [],
+    attempts: stats.attempts || 0,
+    minutesByDate: stats.minutesByDate || {},
+    history: stats.history || [],
+    bestScores: stats.bestScores || {},
+    reviewQueue: stats.reviewQueue || [],
+    stageProgress: {
+      day: stats.stageProgress?.day || 1,
+      stage: stats.stageProgress?.stage || 0,
+      completed: stats.stageProgress?.completed || {},
+    },
+  };
 }
 
 function logout() {
@@ -353,9 +491,9 @@ function logout() {
 }
 
 function restoreSession() {
-  const username = sessionStorage.getItem(SESSION_KEY);
-  if (username && readAccounts()[username]) {
-    unlockApp(username);
+  const key = sessionStorage.getItem(SESSION_KEY);
+  if (key && readAccounts()[key]) {
+    unlockApp(key);
     return;
   }
   document.body.classList.add("auth-locked");
@@ -379,9 +517,48 @@ function activeLessons() {
 }
 
 function currentLesson() {
+  if (state.studyMode === "toefl") return buildToeflLesson(state.toeflDay, state.toeflStage);
+  if (state.studyMode === "review") return currentReviewLesson() || buildToeflLesson(state.toeflDay, state.toeflStage);
   const filtered = activeLessons();
   if (!filtered.length) return lessons[0];
   return filtered[state.lineIndex % filtered.length];
+}
+
+function buildToeflLesson(dayNumber, stageIndex) {
+  const day = toeflPlan[Math.max(0, Math.min(toeflPlan.length - 1, dayNumber - 1))];
+  const stage = Math.max(0, Math.min(toeflStages.length - 1, Number(stageIndex) || 0));
+  const stageLines = [
+    `The word ${day.word} often appears in academic speaking.`,
+    day.sentence,
+    day.prompt,
+  ];
+  const stageMeanings = [
+    `${day.word}: ${day.meaning}；词组：${day.phrase}`,
+    `语法：${day.grammar}；把词组放进完整学术句。`,
+    "把当天词汇、词组和语法合成一句自己的回答。",
+  ];
+  return {
+    id: `toefl-${day.day}-${stage}`,
+    source: "toefl",
+    day: day.day,
+    stage,
+    language: "english",
+    scenario: "toefl",
+    scenarioName: `TOEFL Day ${day.day}`,
+    level: "work",
+    line: stageLines[stage],
+    romanization: `${day.word} / ${day.phrase}`,
+    meaning: stageMeanings[stage],
+    keywords: day.keywords,
+  };
+}
+
+function currentReviewLesson() {
+  const queue = state.stats?.reviewQueue || [];
+  const first = queue.length ? queue[state.lineIndex % queue.length] : null;
+  if (!first) return null;
+  if (first.source === "toefl") return buildToeflLesson(first.day, first.stage);
+  return lessons.find((lesson) => lesson.id === first.id) || null;
 }
 
 function populateScenarios() {
@@ -392,19 +569,24 @@ function populateScenarios() {
   els.scenarioSelect.innerHTML = options
     .map(([value, label]) => `<option value="${value}">${label}</option>`)
     .join("");
+  els.toeflDaySelect.innerHTML = toeflPlan
+    .map((day) => `<option value="${day.day}">Day ${day.day} · ${day.word}</option>`)
+    .join("");
 }
 
 function renderLesson() {
   const lesson = currentLesson();
-  els.scenarioTag.textContent =
-    lesson.language === "cantonese" ? "粤语 · " + lesson.level : "英语 · " + lesson.level;
+  els.scenarioTag.textContent = lesson.source === "toefl"
+    ? `TOEFL · Day ${lesson.day} · ${toeflStages[lesson.stage]}`
+    : lesson.language === "cantonese" ? "粤语 · " + lesson.level : "英语 · " + lesson.level;
   els.lineTitle.textContent = lesson.scenarioName;
   els.targetLine.textContent = lesson.line;
   els.romanization.textContent = lesson.romanization;
   els.meaning.textContent = lesson.meaning;
-  els.transcript.textContent = "点击“开始跟读”，说完后会看到反馈。";
+  els.transcript.textContent = `点击“开始跟读”，匹配度达到 ${PASS_SCORE}% 才能过关。`;
   els.scoreValue.textContent = "--";
   drawWave(lesson.line.length);
+  renderCurriculum();
 }
 
 function renderDialogue(showHint = false) {
@@ -429,9 +611,10 @@ function renderDialogue(showHint = false) {
 
 function renderPhrases() {
   const query = els.phraseSearch.value.trim().toLowerCase();
-  const cards = lessons.filter((lesson) => {
+  const curriculumLessons = toeflPlan.flatMap((day) => [0, 1, 2].map((stage) => buildToeflLesson(day.day, stage)));
+  const cards = [...lessons, ...curriculumLessons].filter((lesson) => {
     const filterMatch =
-      state.phraseFilter === "all" || lesson.language === state.phraseFilter;
+      state.phraseFilter === "all" || lesson.language === state.phraseFilter || (state.phraseFilter === "english" && lesson.source === "toefl");
     const text = `${lesson.line} ${lesson.romanization} ${lesson.meaning} ${lesson.scenarioName}`.toLowerCase();
     return filterMatch && text.includes(query);
   });
@@ -440,7 +623,7 @@ function renderPhrases() {
     .map(
       (lesson) => `
         <article class="phrase-card">
-          <span class="small-label">${lesson.language === "cantonese" ? "粤语" : "英语"} · ${lesson.scenarioName}</span>
+          <span class="small-label">${lesson.source === "toefl" ? "TOEFL" : lesson.language === "cantonese" ? "粤语" : "英语"} · ${lesson.scenarioName}</span>
           <strong>${lesson.line}</strong>
           <p>${lesson.romanization}</p>
           <p>${lesson.meaning}</p>
@@ -470,6 +653,49 @@ function renderStats() {
         )
         .join("")
     : "<li><span>今天完成第一句，就会出现在这里。</span><time>待开始</time></li>";
+  renderCurriculum();
+}
+
+function renderCurriculum() {
+  if (!state.stats) return;
+  const day = toeflPlan[state.toeflDay - 1] || toeflPlan[0];
+  els.toeflDaySelect.value = String(state.toeflDay);
+  els.toeflStageSelect.value = String(state.toeflStage);
+  els.studyModeSelect.value = state.studyMode;
+  els.toeflFocus.innerHTML = [
+    ["词汇", `${day.word} · ${day.meaning}`, `今天所有句子都围绕 ${day.word} 展开。`],
+    ["词组", day.phrase, "先把词组说稳，再放入句子。"],
+    ["语法", day.grammar, "语法不是单独背，直接连到目标句。"],
+    ["句子", day.sentence, "95 分后自动进入下一阶段。"],
+  ]
+    .map(([label, title, text]) => `
+      <div class="focus-item">
+        <span>${label}</span>
+        <strong>${title}</strong>
+        <p>${text}</p>
+      </div>
+    `)
+    .join("");
+
+  const queue = state.stats.reviewQueue || [];
+  els.reviewQueueTitle.textContent = `巩固队列 ${queue.length} 项`;
+  els.reviewQueueText.textContent = queue.length
+    ? "下次进入巩固模式，会按加入顺序一次性处理。每项仍需 95 分。"
+    : "低于 95 分的跟读会自动累积，下次可一次性巩固。";
+  els.reviewQueueList.innerHTML = queue.length
+    ? queue.slice(0, 5).map((item) => `
+      <div class="queue-item">
+        <span>最佳 ${item.bestScore || 0}% · ${item.attempts || 1} 次</span>
+        <strong>${item.title}</strong>
+        <p>${item.line}</p>
+      </div>
+    `).join("")
+    : `<div class="queue-item"><span>清空</span><strong>暂时没有需要巩固的句子</strong><p>继续练，低于 ${PASS_SCORE}% 的句子会出现在这里。</p></div>`;
+
+  const nextText = state.studyMode === "review"
+    ? (queue.length ? "先清掉巩固队列，再回到今天的新内容。" : "巩固队列已清空，可以回到 TOEFL 今日阶段。")
+    : `Day ${state.toeflDay} · ${toeflStages[state.toeflStage]}：达到 ${PASS_SCORE}% 后进入下一阶段。`;
+  els.stageBridgeText.textContent = nextText;
 }
 
 function calculateStreak() {
@@ -551,18 +777,31 @@ function evaluateSpeech(transcript, lesson) {
   els.scoreValue.textContent = `${score}%`;
   addPracticeMinute(1);
   state.stats.attempts += 1;
+  state.stats.bestScores = state.stats.bestScores || {};
+  state.stats.bestScores[lesson.id] = Math.max(state.stats.bestScores[lesson.id] || 0, score);
   state.stats.history.unshift({
-    text: `${lesson.scenarioName}：${lesson.line}`,
+    text: `${score >= PASS_SCORE ? "过关" : "待巩固"} ${score}%：${lesson.line}`,
     time: Date.now(),
   });
   state.stats.history = state.stats.history.slice(0, 12);
+  if (score >= PASS_SCORE) {
+    clearReviewItem(lesson.id);
+    markLessonPassed(lesson);
+  } else {
+    queueForReview(lesson, score);
+  }
   saveStats();
   renderStats();
-
-  if (score >= 72) {
-    showToast("很不错，这句已经能用于真实交流了。");
+  if (score >= PASS_SCORE) {
+    renderLesson();
   } else {
-    showToast("先放慢速度，再抓关键词和句尾。");
+    renderCurriculum();
+  }
+
+  if (score >= PASS_SCORE) {
+    showToast("95 分过关，已衔接到下一阶段。");
+  } else {
+    showToast(`当前 ${score}%，已加入巩固队列。`);
   }
 }
 
@@ -570,6 +809,8 @@ function scoreTranscript(transcript, lesson) {
   const expected = normalize(lesson.line);
   const spoken = normalize(transcript);
   if (!spoken) return 0;
+
+  if (expected === spoken) return 100;
 
   const expectedParts = expected.split(" ").filter(Boolean);
   const spokenParts = spoken.split(" ").filter(Boolean);
@@ -579,7 +820,8 @@ function scoreTranscript(transcript, lesson) {
   const overlap = expectedParts.filter((part) => spokenParts.includes(part)).length;
   const phraseScore = expectedParts.length ? overlap / expectedParts.length : 0;
   const keywordScore = lesson.keywords.length ? keywordHits / lesson.keywords.length : 0;
-  return Math.round(Math.min(1, phraseScore * 0.68 + keywordScore * 0.32) * 100);
+  const distanceScore = 1 - levenshtein(expected, spoken) / Math.max(expected.length, spoken.length, 1);
+  return Math.round(Math.min(1, distanceScore * 0.72 + phraseScore * 0.18 + keywordScore * 0.1) * 100);
 }
 
 function normalize(value) {
@@ -590,21 +832,89 @@ function normalize(value) {
     .trim();
 }
 
-function markMastered() {
-  const lesson = currentLesson();
+function levenshtein(a, b) {
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  const current = new Array(b.length + 1);
+  for (let i = 1; i <= a.length; i += 1) {
+    current[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      current[j] = Math.min(
+        previous[j] + 1,
+        current[j - 1] + 1,
+        previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+    previous.splice(0, previous.length, ...current);
+  }
+  return previous[b.length];
+}
+
+function queueForReview(lesson, score) {
+  state.stats.reviewQueue = state.stats.reviewQueue || [];
+  const existing = state.stats.reviewQueue.find((item) => item.id === lesson.id);
+  if (existing) {
+    existing.bestScore = Math.max(existing.bestScore || 0, score);
+    existing.attempts = (existing.attempts || 0) + 1;
+    existing.lastTried = Date.now();
+    return;
+  }
+
+  state.stats.reviewQueue.push({
+    id: lesson.id,
+    source: lesson.source || "scene",
+    day: lesson.day || null,
+    stage: Number.isInteger(lesson.stage) ? lesson.stage : null,
+    title: lesson.scenarioName,
+    line: lesson.line,
+    bestScore: score,
+    attempts: 1,
+    addedAt: Date.now(),
+    lastTried: Date.now(),
+  });
+}
+
+function clearReviewItem(lessonId) {
+  state.stats.reviewQueue = (state.stats.reviewQueue || []).filter((item) => item.id !== lessonId);
+}
+
+function markLessonPassed(lesson) {
   if (!state.stats.mastered.includes(lesson.id)) {
     state.stats.mastered.push(lesson.id);
   }
+
+  if (lesson.source !== "toefl") return;
+
+  state.stats.stageProgress = state.stats.stageProgress || { day: 1, stage: 0, completed: {} };
+  state.stats.stageProgress.completed[lesson.id] = {
+    passedAt: Date.now(),
+    bestScore: state.stats.bestScores?.[lesson.id] || PASS_SCORE,
+  };
+
+  if (lesson.stage < toeflStages.length - 1) {
+    state.toeflStage = lesson.stage + 1;
+  } else {
+    state.toeflDay = Math.min(toeflPlan.length, lesson.day + 1);
+    state.toeflStage = 0;
+  }
+
+  state.stats.stageProgress.day = state.toeflDay;
+  state.stats.stageProgress.stage = state.toeflStage;
+  state.studyMode = "toefl";
+}
+
+function markMastered() {
+  const lesson = currentLesson();
+  queueForReview(lesson, state.stats.bestScores?.[lesson.id] || 0);
   addPracticeMinute(1);
   state.stats.history.unshift({
-    text: `掌握：${lesson.line}`,
+    text: `暂存巩固：${lesson.line}`,
     time: Date.now(),
   });
   state.stats.history = state.stats.history.slice(0, 12);
   saveStats();
   renderStats();
   renderPhrases();
-  showToast("已记录。明天再复习一次，记得更牢。");
+  showToast("已加入巩固队列，下次统一处理。");
 }
 
 function addPracticeMinute(minutes) {
@@ -688,6 +998,32 @@ function bindEvents() {
     });
   });
 
+  els.studyModeSelect.addEventListener("change", () => {
+    state.studyMode = els.studyModeSelect.value;
+    state.lineIndex = 0;
+    renderLesson();
+  });
+
+  els.toeflDaySelect.addEventListener("change", () => {
+    state.toeflDay = Number(els.toeflDaySelect.value);
+    state.studyMode = "toefl";
+    syncStageProgress();
+    renderLesson();
+  });
+
+  els.toeflStageSelect.addEventListener("change", () => {
+    state.toeflStage = Number(els.toeflStageSelect.value);
+    state.studyMode = "toefl";
+    syncStageProgress();
+    renderLesson();
+  });
+
+  els.startReviewButton.addEventListener("click", () => {
+    state.studyMode = "review";
+    renderLesson();
+    document.querySelector("#practice").scrollIntoView({ behavior: "smooth" });
+  });
+
   els.nextLineButton.addEventListener("click", () => {
     state.lineIndex += 1;
     renderLesson();
@@ -722,8 +1058,19 @@ function bindEvents() {
   els.phraseList.addEventListener("click", (event) => {
     const button = event.target.closest("[data-practice]");
     if (!button) return;
-    const lesson = lessons.find((item) => item.id === button.dataset.practice);
+    const lesson = lessons.find((item) => item.id === button.dataset.practice)
+      || toeflPlan.flatMap((day) => [0, 1, 2].map((stage) => buildToeflLesson(day.day, stage)))
+        .find((item) => item.id === button.dataset.practice);
     if (!lesson) return;
+    if (lesson.source === "toefl") {
+      state.studyMode = "toefl";
+      state.toeflDay = lesson.day;
+      state.toeflStage = lesson.stage;
+      syncStageProgress();
+      renderLesson();
+      document.querySelector("#practice").scrollIntoView({ behavior: "smooth" });
+      return;
+    }
     els.languageSelect.value = lesson.language;
     els.levelSelect.value = lesson.level;
     els.scenarioSelect.value = lesson.scenario;
@@ -733,8 +1080,16 @@ function bindEvents() {
   });
 }
 
+function syncStageProgress() {
+  state.stats.stageProgress = state.stats.stageProgress || { day: 1, stage: 0, completed: {} };
+  state.stats.stageProgress.day = state.toeflDay;
+  state.stats.stageProgress.stage = state.toeflStage;
+  saveStats();
+}
+
 function bindAuthEvents() {
   els.authForm.addEventListener("submit", handleAuthSubmit);
+  els.authMethod.addEventListener("change", updateAuthMethodUi);
   els.authModeButton.addEventListener("click", () => {
     setAuthMode(state.authMode === "login" ? "register" : "login");
   });
@@ -790,6 +1145,7 @@ function initProduct() {
 }
 
 function init() {
+  updateAuthMethodUi();
   setAuthMode("login");
   bindAuthEvents();
   registerServiceWorker();
