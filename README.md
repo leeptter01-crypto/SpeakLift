@@ -51,10 +51,16 @@ The launcher starts a local server and opens SpeakLift in an app-style browser w
 
 ## GitHub Sync
 
-Once a GitHub repository URL is available, run:
+Current GitHub repository:
+
+```text
+https://github.com/vlipnjohn7-coder/SpeakLift
+```
+
+To sync from this computer with normal Git credentials, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\SpeakLift\scripts\Sync-GitHub.ps1 -GitHubRepoUrl "https://github.com/<owner>/<repo>.git"
+powershell -ExecutionPolicy Bypass -File D:\SpeakLift\scripts\Sync-GitHub.ps1
 ```
 
 If the repository is private or requires authentication, sign in through Git credential manager or use the GitHub plugin.

@@ -1,6 +1,5 @@
 param(
-  [Parameter(Mandatory = $true)]
-  [string]$GitHubRepoUrl
+  [string]$GitHubRepoUrl = "https://github.com/vlipnjohn7-coder/SpeakLift.git"
 )
 
 $ErrorActionPreference = "Stop"
