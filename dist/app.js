@@ -257,20 +257,18 @@ const dialogues = [
 ];
 
 const PASS_SCORE = 95;
+const QUESTS = [
+  { id: "practice", title: "开口练习" },
+  { id: "curriculum", title: "词汇连接" },
+  { id: "dialogue", title: "对话反应" },
+  { id: "phrases", title: "句库补给" },
+  { id: "progress", title: "进度奖励" },
+];
 
 const registerMethods = {
   email: { label: "邮箱", placeholder: "name@example.com" },
   phone: { label: "手机号", placeholder: "13800138000" },
-  wechat: { label: "微信号", placeholder: "WeChat ID" },
-  qq: { label: "QQ", placeholder: "QQ 号" },
-  weibo: { label: "微博", placeholder: "微博账号" },
-  douyin: { label: "抖音", placeholder: "抖音号" },
-  xiaohongshu: { label: "小红书", placeholder: "小红书号" },
-  google: { label: "Google", placeholder: "Google 邮箱" },
-  apple: { label: "Apple", placeholder: "Apple ID 邮箱" },
-  facebook: { label: "Facebook", placeholder: "Facebook 邮箱或账号" },
-  x: { label: "X", placeholder: "@handle" },
-  linkedin: { label: "LinkedIn", placeholder: "LinkedIn 邮箱或主页名" },
+  google: { label: "Google 账号", placeholder: "yourname@gmail.com" },
 };
 
 const toeflPlan = [
@@ -347,6 +345,7 @@ const state = {
   recognizing: false,
   currentUser: null,
   authMode: "login",
+  currentView: "practice",
   deferredInstallPrompt: null,
   productReady: false,
   stats: null,
@@ -370,8 +369,14 @@ const els = {
   accountName: document.querySelector("#accountName"),
   installAppButton: document.querySelector("#installAppButton"),
   logoutButton: document.querySelector("#logoutButton"),
+  topnavButtons: document.querySelectorAll(".topnav [data-view]"),
+  questPages: document.querySelectorAll(".quest-page"),
+  questName: document.querySelector("#questName"),
+  questProgressText: document.querySelector("#questProgressText"),
+  questDots: document.querySelector("#questDots"),
   todayMinutes: document.querySelector("#todayMinutes"),
   minuteBar: document.querySelector("#minuteBar"),
+  practiceTitle: document.querySelector("#practice-title"),
   studyModeSelect: document.querySelector("#studyModeSelect"),
   languageSelect: document.querySelector("#languageSelect"),
   scenarioSelect: document.querySelector("#scenarioSelect"),
@@ -482,8 +487,7 @@ function writeAccounts(accounts) {
 function normalizeIdentifier(value, method = els.authMethod.value) {
   const trimmed = value.trim();
   if (method === "phone") return trimmed.replace(/[^\d+]/g, "");
-  if (method === "x") return trimmed.replace(/^@+/, "").toLowerCase();
-  return trimmed.toLowerCase().replace(/\s+/g, "-");
+  return trimmed.toLowerCase();
 }
 
 function accountKey(method, identifier) {
@@ -491,7 +495,7 @@ function accountKey(method, identifier) {
 }
 
 function validateIdentifier(method, identifier) {
-  if (method === "email" || method === "google" || method === "apple") {
+  if (method === "email" || method === "google") {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
   }
   if (method === "phone") {
@@ -721,6 +725,18 @@ function currentLesson() {
   return filtered[state.lineIndex % filtered.length];
 }
 
+function currentLevelNumber() {
+  if (state.studyMode === "toefl") {
+    return (state.toeflDay - 1) * toeflStages.length + state.toeflStage + 1;
+  }
+  if (state.studyMode === "review") {
+    const queueLength = Math.max(1, state.stats?.reviewQueue?.length || 0);
+    return (state.lineIndex % queueLength) + 1;
+  }
+  const filteredLength = Math.max(1, activeLessons().length);
+  return (state.lineIndex % filteredLength) + 1;
+}
+
 function buildToeflLesson(dayNumber, stageIndex) {
   const day = toeflPlan[Math.max(0, Math.min(toeflPlan.length - 1, dayNumber - 1))];
   const stage = Math.max(0, Math.min(toeflStages.length - 1, Number(stageIndex) || 0));
@@ -777,8 +793,54 @@ function populateScenarios() {
     .join("");
 }
 
+function showQuestView(viewId, options = {}) {
+  const nextView = QUESTS.some((quest) => quest.id === viewId) ? viewId : "practice";
+  state.currentView = nextView;
+  els.questPages.forEach((page) => {
+    const active = page.dataset.view === nextView;
+    page.classList.toggle("active", active);
+    page.hidden = !active;
+  });
+  els.topnavButtons.forEach((button) => {
+    const active = button.dataset.view === nextView;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-current", active ? "page" : "false");
+  });
+  renderQuestHud();
+  if (options.scroll !== false) {
+    document.querySelector(".quest-main").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function renderQuestHud() {
+  const questIndex = Math.max(0, QUESTS.findIndex((quest) => quest.id === state.currentView));
+  const quest = QUESTS[questIndex] || QUESTS[0];
+  const levelNumber = currentLevelNumber();
+  els.questName.textContent = state.currentView === "practice"
+    ? `第 ${levelNumber} 关 · ${currentLesson()?.scenarioName || "开口练习"}`
+    : quest.title;
+  els.questProgressText.textContent = state.currentView === "practice"
+    ? `${PASS_SCORE} 分过关 · 自动进入下一关`
+    : `第 ${questIndex + 1} 页 / 共 ${QUESTS.length} 页`;
+  els.questDots.innerHTML = QUESTS
+    .map((item, index) => `<span class="${index === questIndex ? "active" : index < questIndex ? "done" : ""}"></span>`)
+    .join("");
+}
+
+function playLevelAdvance(message) {
+  document.body.classList.remove("level-complete");
+  window.requestAnimationFrame(() => {
+    document.body.classList.add("level-complete");
+    window.setTimeout(() => document.body.classList.remove("level-complete"), 900);
+  });
+  showToast(message);
+  renderQuestHud();
+}
+
 function renderLesson() {
   const lesson = currentLesson();
+  const levelNumber = currentLevelNumber();
+  els.practiceTitle.textContent = `第 ${levelNumber} 关：开口`;
   els.scenarioTag.textContent = lesson.source === "toefl"
     ? `TOEFL · Day ${lesson.day} · ${toeflStages[lesson.stage]}`
     : lesson.language === "cantonese" ? "粤语 · " + lesson.level : "英语 · " + lesson.level;
@@ -795,6 +857,7 @@ function renderLesson() {
   els.listeningHint.textContent = "先听懂，再跟读；听写可以辅助校准细节。";
   drawWave(lesson.line.length);
   renderCurriculum();
+  renderQuestHud();
 }
 
 function setMeaningVisible(visible) {
@@ -993,7 +1056,7 @@ function checkDictation() {
     saveStats();
     renderStats();
     renderLesson();
-    showToast("听写达到 95%，可以进入跟读巩固。");
+    playLevelAdvance("听写达到 95%，已进入下一关。");
   } else {
     queueForReview(lesson, score);
     saveStats();
@@ -1076,7 +1139,7 @@ function evaluateSpeech(transcript, lesson) {
   }
 
   if (score >= PASS_SCORE) {
-    showToast("95 分过关，已衔接到下一阶段。");
+    playLevelAdvance("95 分过关，已自动进入下一关。");
   } else {
     showToast(`当前 ${score}%，已加入巩固队列。`);
   }
@@ -1159,7 +1222,10 @@ function markLessonPassed(lesson) {
     state.stats.mastered.push(lesson.id);
   }
 
-  if (lesson.source !== "toefl") return;
+  if (lesson.source !== "toefl") {
+    state.lineIndex += 1;
+    return;
+  }
 
   state.stats.stageProgress = state.stats.stageProgress || { day: 1, stage: 0, completed: {} };
   state.stats.stageProgress.completed[lesson.id] = {
@@ -1205,7 +1271,7 @@ function drawWave(seed = 12, active = false) {
   const width = canvas.width;
   const height = canvas.height;
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#fffaf0";
+  ctx.fillStyle = "#f4fbf8";
   ctx.fillRect(0, 0, width, height);
 
   ctx.strokeStyle = "rgba(19, 95, 99, 0.12)";
@@ -1285,6 +1351,10 @@ function bindRevealTrigger(element, callback) {
 }
 
 function bindEvents() {
+  els.topnavButtons.forEach((button) => {
+    button.addEventListener("click", () => showQuestView(button.dataset.view));
+  });
+
   [els.languageSelect, els.scenarioSelect, els.levelSelect].forEach((control) => {
     control.addEventListener("change", () => {
       state.lineIndex = 0;
@@ -1315,7 +1385,7 @@ function bindEvents() {
   els.startReviewButton.addEventListener("click", () => {
     state.studyMode = "review";
     renderLesson();
-    document.querySelector("#practice").scrollIntoView({ behavior: "smooth" });
+    showQuestView("practice");
   });
 
   els.nextLineButton.addEventListener("click", () => {
@@ -1400,7 +1470,7 @@ function bindEvents() {
       state.toeflStage = lesson.stage;
       syncStageProgress();
       renderLesson();
-      document.querySelector("#practice").scrollIntoView({ behavior: "smooth" });
+      showQuestView("practice");
       return;
     }
     els.languageSelect.value = lesson.language;
@@ -1408,7 +1478,7 @@ function bindEvents() {
     els.scenarioSelect.value = lesson.scenario;
     state.lineIndex = activeLessons().findIndex((item) => item.id === lesson.id);
     renderLesson();
-    document.querySelector("#practice").scrollIntoView({ behavior: "smooth" });
+    showQuestView("practice");
   });
 
   els.phraseList.addEventListener("keydown", (event) => {
@@ -1487,6 +1557,7 @@ function initProduct() {
   renderDialogue();
   renderPhrases();
   renderStats();
+  showQuestView(state.currentView, { scroll: false });
 }
 
 function init() {

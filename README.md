@@ -7,7 +7,7 @@ SpeakLift is a bilingual speaking-practice app for English and Cantonese beginne
 - Product files: `D:\SpeakLift`
 - Web entry: `dist/index.html`
 - Published site: `https://speaklift-yi-20260923.johnleebob.chatgpt.site`
-- Account mode: email, phone, or common social account identifier plus password; independent from ChatGPT login
+- Account mode: email, phone, or Google account identifier plus password; independent from ChatGPT login
 - Registration safety: new accounts must pass a 6-digit verification code step
 - Practice data: stored per account on the current device
 - Password storage: salted hash in browser storage; use a backend before handling real multi-device user accounts or real third-party OAuth
@@ -15,8 +15,10 @@ SpeakLift is a bilingual speaking-practice app for English and Cantonese beginne
 ## Features
 
 - English, Cantonese, and mixed practice modes
-- Email, phone, WeChat, QQ, Weibo, Douyin, Xiaohongshu, Google, Apple, Facebook, X, and LinkedIn style account identifiers
+- Email, phone, and Google account identifiers
 - Local 6-digit verification code check during registration
+- Game-like level flow: one learning page at a time, with automatic advancement after passing a speaking or dictation task
+- Calmer green-blue visual system with coral completion feedback and lightweight level animations
 - Listen-and-repeat practice with browser speech synthesis
 - Slow listening, 3-repeat loop listening, and dictation-assisted listening practice
 - Speech recognition feedback when the browser supports it

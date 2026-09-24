@@ -1,16 +1,19 @@
 :root {
   color-scheme: light;
-  --ink: #173234;
-  --muted: #637678;
-  --page: #f7f3ea;
-  --panel: #fffaf0;
-  --panel-strong: #fff4d8;
-  --teal: #135f63;
-  --teal-dark: #0d474a;
-  --gold: #ffc857;
-  --coral: #df5d45;
-  --line: rgba(23, 50, 52, 0.15);
-  --shadow: 0 18px 50px rgba(18, 64, 67, 0.16);
+  --ink: #17323a;
+  --muted: #617579;
+  --page: #f4fbf8;
+  --panel: #ffffff;
+  --panel-strong: #e7f6ef;
+  --mint: #d8f0e5;
+  --sky: #dceef7;
+  --teal: #1f7a72;
+  --teal-dark: #155a56;
+  --blue: #286a7d;
+  --gold: #f4bd42;
+  --coral: #f26d55;
+  --line: rgba(23, 50, 58, 0.13);
+  --shadow: 0 18px 44px rgba(31, 122, 114, 0.14);
   --radius: 8px;
   font-family:
     Inter, "Noto Sans SC", "Microsoft YaHei", "PingFang SC", system-ui,
@@ -30,8 +33,8 @@ body {
   min-width: 320px;
   color: var(--ink);
   background:
-    linear-gradient(135deg, rgba(19, 95, 99, 0.08), transparent 34rem),
-    radial-gradient(circle at 85% 8%, rgba(255, 200, 87, 0.18), transparent 18rem),
+    linear-gradient(135deg, rgba(31, 122, 114, 0.11), rgba(40, 106, 125, 0.06) 42%, transparent 42%),
+    linear-gradient(180deg, rgba(244, 251, 248, 0.95), rgba(232, 247, 240, 0.72)),
     var(--page);
 }
 
@@ -74,7 +77,7 @@ body:not(.auth-locked) .auth-screen {
   gap: 22px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(255, 250, 240, 0.94);
+  background: rgba(255, 255, 255, 0.94);
   box-shadow: var(--shadow);
   padding: clamp(22px, 5vw, 36px);
 }
@@ -160,7 +163,7 @@ body:not(.auth-locked) .auth-screen {
   justify-content: space-between;
   gap: 20px;
   padding: 18px 0;
-  background: rgba(247, 243, 234, 0.9);
+  background: rgba(244, 251, 248, 0.92);
   backdrop-filter: blur(16px);
 }
 
@@ -203,20 +206,23 @@ body:not(.auth-locked) .auth-screen {
   padding: 6px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(255, 250, 240, 0.78);
+  background: rgba(255, 255, 255, 0.78);
 }
 
-.topnav a {
+.topnav button {
   min-height: 38px;
+  border: 0;
   padding: 9px 13px;
   border-radius: 6px;
+  background: transparent;
   color: var(--muted);
   font-size: 0.925rem;
   font-weight: 700;
 }
 
-.topnav a:hover,
-.topnav a:focus-visible {
+.topnav button:hover,
+.topnav button:focus-visible,
+.topnav button.active {
   background: var(--teal);
   color: white;
   outline: none;
@@ -244,6 +250,74 @@ body:not(.auth-locked) .auth-screen {
   box-shadow: none;
 }
 
+.quest-main {
+  display: grid;
+  gap: 16px;
+  padding-bottom: 28px;
+}
+
+.quest-hud {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(216, 240, 229, 0.92), rgba(220, 238, 247, 0.82)),
+    white;
+  box-shadow: 0 12px 30px rgba(31, 122, 114, 0.1);
+  padding: 14px 16px;
+}
+
+.quest-hud strong {
+  display: block;
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+  line-height: 1.2;
+}
+
+.quest-progress {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.quest-dots {
+  display: flex;
+  gap: 7px;
+}
+
+.quest-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(23, 50, 58, 0.16);
+  transition:
+    width 220ms ease,
+    background 220ms ease,
+    transform 220ms ease;
+}
+
+.quest-dots span.done {
+  background: var(--mint);
+}
+
+.quest-dots span.active {
+  width: 30px;
+  background: var(--coral);
+}
+
+.quest-page {
+  animation: pageIn 260ms ease both;
+}
+
+.quest-page:not(.active),
+.quest-page[hidden] {
+  display: none;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(420px, 1.08fr);
@@ -261,7 +335,7 @@ body:not(.auth-locked) .auth-screen {
 .progress-section {
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(255, 250, 240, 0.88);
+  background: rgba(255, 255, 255, 0.9);
   box-shadow: var(--shadow);
 }
 
@@ -517,7 +591,7 @@ svg {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 250, 240, 0.88)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(232, 247, 240, 0.86)),
     repeating-linear-gradient(90deg, transparent 0 38px, rgba(19, 95, 99, 0.07) 38px 39px);
 }
 
@@ -611,6 +685,14 @@ svg {
   animation: pulse 1.1s ease-in-out infinite;
 }
 
+body.level-complete .trainer-card {
+  animation: levelComplete 760ms ease both;
+}
+
+body.level-complete .quest-hud {
+  animation: rewardGlow 760ms ease both;
+}
+
 .ghost-action {
   background: white;
   color: var(--teal);
@@ -675,7 +757,7 @@ svg {
 .curriculum-section {
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(255, 250, 240, 0.88);
+  background: rgba(255, 255, 255, 0.9);
   box-shadow: var(--shadow);
   padding: 18px;
 }
@@ -904,6 +986,9 @@ svg {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+  max-height: calc(100svh - 310px);
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .phrase-card {
@@ -1021,6 +1106,54 @@ svg {
   }
 }
 
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes levelComplete {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+
+  38% {
+    transform: translateY(-4px) scale(1.012);
+    box-shadow: 0 22px 52px rgba(242, 109, 85, 0.18);
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes rewardGlow {
+  0%,
+  100% {
+    border-color: var(--line);
+  }
+
+  45% {
+    border-color: rgba(242, 109, 85, 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
+}
+
 @media (max-width: 980px) {
   .workspace,
   .section-grid {
@@ -1072,8 +1205,16 @@ svg {
     overflow-x: auto;
   }
 
-  .topnav a {
+  .topnav button {
     white-space: nowrap;
+  }
+
+  .quest-hud {
+    grid-template-columns: 1fr;
+  }
+
+  .quest-progress {
+    justify-items: start;
   }
 
   .workspace {

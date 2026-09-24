@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SpeakLift 英语粤语口语练习</title>
     <meta name="description" content="零基础英语和粤语口语练习工具，包含跟读、场景对话、发音提示和本地进度记录。" />
-    <meta name="theme-color" content="#135f63" />
+    <meta name="theme-color" content="#1f7a72" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=5" />
+    <link rel="stylesheet" href="./styles.css?v=6" />
   </head>
   <body class="auth-locked">
     <section class="auth-screen" id="authScreen" aria-labelledby="authTitle">
@@ -17,30 +17,21 @@
           <span class="brand-mark" aria-hidden="true">SL</span>
           <span>
             <span class="brand-name">SpeakLift</span>
-            <span class="brand-subtitle">独立账号登录</span>
+            <span class="brand-subtitle">闯关式口语训练</span>
           </span>
         </a>
         <div class="auth-copy">
           <p class="eyebrow">App 登录</p>
-          <h1 id="authTitle">用账号密码进入练习</h1>
-          <p>账号只用于 SpeakLift，不依赖 ChatGPT 登录。首次使用先注册，之后用同一账号进入自己的练习记录。</p>
+          <h1 id="authTitle">进入今天的口语关卡</h1>
+          <p>支持邮箱、手机号或 Google 账号登录。账号只用于 SpeakLift，不依赖 ChatGPT。</p>
         </div>
         <form class="auth-form" id="authForm">
           <label>
-            <span>注册方式</span>
+            <span>登录方式</span>
             <select id="authMethod" name="method">
               <option value="email">邮箱</option>
               <option value="phone">手机号</option>
-              <option value="wechat">微信号</option>
-              <option value="qq">QQ</option>
-              <option value="weibo">微博</option>
-              <option value="douyin">抖音</option>
-              <option value="xiaohongshu">小红书</option>
-              <option value="google">Google</option>
-              <option value="apple">Apple</option>
-              <option value="facebook">Facebook</option>
-              <option value="x">X</option>
-              <option value="linkedin">LinkedIn</option>
+              <option value="google">Google 账号</option>
             </select>
           </label>
           <label>
@@ -66,7 +57,7 @@
           <button class="ghost-action" id="authModeButton" type="button">新用户注册</button>
           <p class="auth-message" id="authMessage" role="status"></p>
         </form>
-        <p class="auth-note">当前版本的账号和学习数据保存在本设备。后续接入云端后，可以把同一账号同步到多台设备。</p>
+        <p class="auth-note">当前版本的账号和学习数据保存在本设备。Google 账号以邮箱形式登记；后续接入云端后可升级为真实 Google 授权登录。</p>
       </div>
     </section>
 
@@ -79,12 +70,12 @@
             <span class="brand-subtitle">英语 / 粤语口语</span>
           </span>
         </a>
-        <nav class="topnav" aria-label="主要功能">
-          <a href="#practice">练习</a>
-          <a href="#dialogue">对话</a>
-          <a href="#curriculum">TOEFL</a>
-          <a href="#phrases">句库</a>
-          <a href="#progress">进度</a>
+        <nav class="topnav" aria-label="关卡导航">
+          <button class="active" type="button" data-view="practice">开口</button>
+          <button type="button" data-view="curriculum">词汇</button>
+          <button type="button" data-view="dialogue">对话</button>
+          <button type="button" data-view="phrases">句库</button>
+          <button type="button" data-view="progress">进度</button>
         </nav>
         <div class="top-actions">
           <span id="accountName">未登录</span>
@@ -93,13 +84,24 @@
         </div>
       </header>
 
-      <main>
-        <section class="workspace" id="practice" aria-labelledby="practice-title">
+      <main class="quest-main">
+        <section class="quest-hud" aria-label="今日闯关进度">
+          <div>
+            <span class="small-label">当前关卡</span>
+            <strong id="questName">开口练习</strong>
+          </div>
+          <div class="quest-progress">
+            <span id="questProgressText">第 1 页 / 共 5 页</span>
+            <div class="quest-dots" id="questDots" aria-hidden="true"></div>
+          </div>
+        </section>
+
+        <section class="workspace quest-page active" id="practice" data-view="practice" aria-labelledby="practice-title">
           <div class="coach-panel">
             <div class="panel-heading">
               <p class="eyebrow">今日 15 分钟</p>
-              <h1 id="practice-title">先敢开口，再练准确</h1>
-              <p class="lead">选一个场景，听一遍，跟读一遍，再换成自己的回答。每次练完都记录在本机。</p>
+              <h1 id="practice-title">第 1 关：开口</h1>
+              <p class="lead">一屏只练一句。听懂、跟读或听写达到 95 分后，自动进入下一关。</p>
             </div>
 
             <div class="daily-meter" aria-label="今日练习进度">
@@ -147,7 +149,7 @@
             <div class="stage-bridge" aria-label="阶段衔接">
               <div>
                 <span class="small-label">下一步</span>
-                <p id="stageBridgeText">先把今天的目标句读到 95 分，再进入下一段。</p>
+                <p id="stageBridgeText">先把今天的目标句读到 95 分，再进入下一关。</p>
               </div>
               <button class="ghost-action compact-action" id="startReviewButton" type="button">做巩固</button>
             </div>
@@ -223,10 +225,10 @@
           </div>
         </section>
 
-        <section class="curriculum-section" id="curriculum" aria-labelledby="curriculum-title">
+        <section class="curriculum-section quest-page" id="curriculum" data-view="curriculum" aria-labelledby="curriculum-title">
           <div class="section-heading">
             <p class="eyebrow">TOEFL 21 天</p>
-            <h2 id="curriculum-title">词汇、语法、词组、句子连起来练</h2>
+            <h2 id="curriculum-title">第 2 关：词汇连接</h2>
           </div>
           <div class="curriculum-board">
             <article class="curriculum-card">
@@ -256,10 +258,10 @@
           </div>
         </section>
 
-        <section class="section-grid" id="dialogue" aria-labelledby="dialogue-title">
+        <section class="section-grid quest-page" id="dialogue" data-view="dialogue" aria-labelledby="dialogue-title">
           <div class="section-heading">
             <p class="eyebrow">角色对话</p>
-            <h2 id="dialogue-title">像聊天一样练反应</h2>
+            <h2 id="dialogue-title">第 3 关：对话反应</h2>
           </div>
           <div class="dialogue-board">
             <div class="chat-window" id="chatWindow" aria-live="polite"></div>
@@ -290,10 +292,10 @@
           </aside>
         </section>
 
-        <section class="phrase-section" id="phrases" aria-labelledby="phrases-title">
+        <section class="phrase-section quest-page" id="phrases" data-view="phrases" aria-labelledby="phrases-title">
           <div class="section-heading">
             <p class="eyebrow">句库</p>
-            <h2 id="phrases-title">从能马上用的句子开始</h2>
+            <h2 id="phrases-title">第 4 关：句库补给</h2>
           </div>
           <div class="phrase-tools">
             <input id="phraseSearch" type="search" placeholder="搜索：咖啡、问路、介绍、工作..." />
@@ -306,10 +308,10 @@
           <div class="phrase-list" id="phraseList"></div>
         </section>
 
-        <section class="progress-section" id="progress" aria-labelledby="progress-title">
+        <section class="progress-section quest-page" id="progress" data-view="progress" aria-labelledby="progress-title">
           <div class="section-heading">
             <p class="eyebrow">进度</p>
-            <h2 id="progress-title">把开口变成习惯</h2>
+            <h2 id="progress-title">第 5 关：进度奖励</h2>
           </div>
           <div class="stats-grid">
             <article>
@@ -334,6 +336,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js?v=5" type="module"></script>
+    <script src="./app.js?v=6" type="module"></script>
   </body>
 </html>
