@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#135f63" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=4" />
+    <link rel="stylesheet" href="./styles.css?v=5" />
   </head>
   <body class="auth-locked">
     <section class="auth-screen" id="authScreen" aria-labelledby="authTitle">
@@ -50,6 +50,13 @@
           <label id="authDisplayNameWrap">
             <span>昵称</span>
             <input id="authDisplayName" name="displayName" autocomplete="nickname" maxlength="32" placeholder="练习时显示的名字" />
+          </label>
+          <label id="authCodeWrap" hidden>
+            <span>验证码</span>
+            <div class="auth-code-row">
+              <input id="authCode" name="verificationCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" />
+              <button class="ghost-action compact-action" id="sendCodeButton" type="button">发送验证码</button>
+            </div>
           </label>
           <label>
             <span>密码</span>
@@ -160,13 +167,27 @@
             </div>
 
             <div class="phrase-stage">
-              <p class="target-line" id="targetLine">Hello, nice to meet you.</p>
-              <p class="romanization" id="romanization">heh-loh, nice tuh meet yoo</p>
-              <p class="meaning" id="meaning">你好，很高兴认识你。</p>
+              <button class="target-line reveal-trigger" id="targetLine" type="button">Hello, nice to meet you.</button>
+              <p class="romanization reveal-trigger" id="romanization" role="button" tabindex="0">heh-loh, nice tuh meet yoo</p>
+              <p class="written-expression reveal-trigger" id="writtenExpression" role="button" tabindex="0">Written: Hello, nice to meet you.</p>
+              <p class="meaning" id="meaning" hidden>你好，很高兴认识你。</p>
+              <p class="meaning-hint" id="meaningHint">点击英文句子、书面表达、单词或短语查看中文意思。</p>
             </div>
 
             <div class="wave-card" aria-label="口语节奏">
               <canvas id="waveCanvas" width="760" height="160"></canvas>
+            </div>
+
+            <div class="listening-tools" aria-label="听力辅助">
+              <button class="ghost-action compact-action" id="slowListenButton" type="button">慢速听</button>
+              <button class="ghost-action compact-action" id="loopListenButton" type="button">循环 3 遍</button>
+              <button class="ghost-action compact-action" id="dictationButton" type="button">听写</button>
+              <span id="listeningHint">先听懂，再跟读；需要时用慢速和听写拆开练。</span>
+            </div>
+
+            <div class="dictation-box" id="dictationBox" hidden>
+              <textarea id="dictationInput" rows="2" placeholder="听完后写下你听到的英文，再检查相似度。"></textarea>
+              <button class="ghost-action compact-action" id="checkDictationButton" type="button">检查听写</button>
             </div>
 
             <div class="action-row">
@@ -313,6 +334,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js?v=4" type="module"></script>
+    <script src="./app.js?v=5" type="module"></script>
   </body>
 </html>

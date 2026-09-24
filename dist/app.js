@@ -55,6 +55,72 @@ const lessons = [
     keywords: ["send", "update", "five"],
   },
   {
+    id: "weather-en",
+    language: "english",
+    scenario: "weather",
+    scenarioName: "天气寒暄",
+    level: "starter",
+    line: "The weather is nice today.",
+    romanization: "the weh-thur iz nice tuh-day",
+    meaning: "今天天气很好。",
+    keywords: ["weather", "nice", "today"],
+  },
+  {
+    id: "help-en",
+    language: "english",
+    scenario: "help",
+    scenarioName: "请求帮助",
+    level: "starter",
+    line: "Could you help me with this word?",
+    romanization: "kood yoo help mee with this werd",
+    meaning: "你能帮我看一下这个单词吗？",
+    keywords: ["help", "word"],
+  },
+  {
+    id: "schedule-en",
+    language: "english",
+    scenario: "schedule",
+    scenarioName: "安排时间",
+    level: "daily",
+    line: "I am available after three this afternoon.",
+    romanization: "eye am uh-vay-luh-bul af-ter three this af-ter-noon",
+    meaning: "我今天下午三点以后有空。",
+    keywords: ["available", "afternoon"],
+  },
+  {
+    id: "restaurant-en",
+    language: "english",
+    scenario: "restaurant",
+    scenarioName: "餐厅点餐",
+    level: "daily",
+    line: "I would like the chicken set, please.",
+    romanization: "eye wood like the chik-in set, pleez",
+    meaning: "我想要鸡肉套餐，谢谢。",
+    keywords: ["chicken", "set", "please"],
+  },
+  {
+    id: "opinion-en",
+    language: "english",
+    scenario: "opinion",
+    scenarioName: "表达观点",
+    level: "work",
+    line: "In my opinion, this plan is practical.",
+    romanization: "in my uh-pin-yun, this plan iz prak-ti-kul",
+    meaning: "在我看来，这个计划很实际。",
+    keywords: ["opinion", "plan", "practical"],
+  },
+  {
+    id: "clarify-en",
+    language: "english",
+    scenario: "clarify",
+    scenarioName: "确认信息",
+    level: "work",
+    line: "Could you clarify the main point again?",
+    romanization: "kood yoo kla-ri-fy the main point uh-gen",
+    meaning: "你能再说明一下重点吗？",
+    keywords: ["clarify", "main", "point"],
+  },
+  {
     id: "hello-yue",
     language: "cantonese",
     scenario: "hello",
@@ -108,6 +174,50 @@ const lessons = [
     romanization: "ngo5 ng5 dim2 cin4 wui5 faat3 go3 update bei2 nei5",
     meaning: "我五点前会把进展发给你。",
     keywords: ["五点", "update", "畀你"],
+  },
+  {
+    id: "weather-yue",
+    language: "cantonese",
+    scenario: "weather",
+    scenarioName: "天气寒暄",
+    level: "starter",
+    line: "今日天气几好。",
+    romanization: "gam1 jat6 tin1 hei3 gei2 hou2",
+    meaning: "今天天气挺好。",
+    keywords: ["天气", "几好"],
+  },
+  {
+    id: "help-yue",
+    language: "cantonese",
+    scenario: "help",
+    scenarioName: "请求帮助",
+    level: "starter",
+    line: "可唔可以帮我睇下呢个字？",
+    romanization: "ho2 m4 ho2 ji5 bong1 ngo5 tai2 haa5 ni1 go3 zi6",
+    meaning: "可不可以帮我看一下这个字？",
+    keywords: ["帮我", "呢个字"],
+  },
+  {
+    id: "schedule-yue",
+    language: "cantonese",
+    scenario: "schedule",
+    scenarioName: "安排时间",
+    level: "daily",
+    line: "我今日下昼三点后得闲。",
+    romanization: "ngo5 gam1 jat6 haa6 zau3 saam1 dim2 hau6 dak1 haan4",
+    meaning: "我今天下午三点以后有空。",
+    keywords: ["下昼", "得闲"],
+  },
+  {
+    id: "clarify-yue",
+    language: "cantonese",
+    scenario: "clarify",
+    scenarioName: "确认信息",
+    level: "work",
+    line: "可唔可以再讲清楚重点？",
+    romanization: "ho2 m4 ho2 ji5 zoi3 gong2 cing1 co2 zung6 dim2",
+    meaning: "可不可以再讲清楚重点？",
+    keywords: ["讲清楚", "重点"],
   },
 ];
 
@@ -194,8 +304,35 @@ const toeflPlan = [
   grammar,
   sentence,
   prompt: `Use ${word} and ${phrase} to answer in one complete sentence.`,
+  relatedWords: [
+    ["analyze", "cause", "result"],
+    ["assumption", "responsible", "sample"],
+    ["advantage", "cost", "outcome"],
+    ["compare", "exception", "difference"],
+    ["decrease", "trend", "species"],
+    ["support", "claim", "reliable"],
+    ["influence", "migration", "pattern"],
+    ["experiment", "test", "method"],
+    ["example", "context", "memory"],
+    ["reason", "data", "decision"],
+    ["balance", "ecosystem", "store"],
+    ["accurate", "observe", "source"],
+    ["forecast", "condition", "temperature"],
+    ["useful", "detail", "response"],
+    ["major", "occur", "method"],
+    ["challenge", "replace", "data"],
+    ["control", "comparison", "fair"],
+    ["survive", "region", "change"],
+    ["combine", "process", "memory"],
+    ["conclusion", "evidence", "opinion"],
+    ["clear", "speaker", "example"],
+  ][index],
   keywords: [word, ...phrase.split(" ").filter((part) => part.length > 2)],
 }));
+
+toeflPlan.forEach((day) => {
+  day.keywords = [...new Set([...day.keywords, ...day.relatedWords])];
+});
 
 const toeflStages = ["词汇到词组", "语法到句子", "口语输出"];
 
@@ -223,6 +360,9 @@ const els = {
   authIdentifierLabel: document.querySelector("#authIdentifierLabel"),
   authDisplayName: document.querySelector("#authDisplayName"),
   authDisplayNameWrap: document.querySelector("#authDisplayNameWrap"),
+  authCode: document.querySelector("#authCode"),
+  authCodeWrap: document.querySelector("#authCodeWrap"),
+  sendCodeButton: document.querySelector("#sendCodeButton"),
   authPassword: document.querySelector("#authPassword"),
   authSubmitButton: document.querySelector("#authSubmitButton"),
   authModeButton: document.querySelector("#authModeButton"),
@@ -240,8 +380,17 @@ const els = {
   lineTitle: document.querySelector("#lineTitle"),
   targetLine: document.querySelector("#targetLine"),
   romanization: document.querySelector("#romanization"),
+  writtenExpression: document.querySelector("#writtenExpression"),
   meaning: document.querySelector("#meaning"),
+  meaningHint: document.querySelector("#meaningHint"),
   listenButton: document.querySelector("#listenButton"),
+  slowListenButton: document.querySelector("#slowListenButton"),
+  loopListenButton: document.querySelector("#loopListenButton"),
+  dictationButton: document.querySelector("#dictationButton"),
+  dictationBox: document.querySelector("#dictationBox"),
+  dictationInput: document.querySelector("#dictationInput"),
+  checkDictationButton: document.querySelector("#checkDictationButton"),
+  listeningHint: document.querySelector("#listeningHint"),
   recordButton: document.querySelector("#recordButton"),
   masteredButton: document.querySelector("#masteredButton"),
   nextLineButton: document.querySelector("#nextLineButton"),
@@ -275,6 +424,12 @@ const SpeechRecognition =
 const ACCOUNT_KEY = "speaklift.accounts";
 const SESSION_KEY = "speaklift.sessionUser";
 const LEGACY_STATS_KEY = "speaklift.stats";
+const VERIFICATION_TTL_MS = 10 * 60 * 1000;
+const verificationState = {
+  key: null,
+  code: null,
+  expiresAt: 0,
+};
 
 function loadStats() {
   const fallback = {
@@ -362,6 +517,39 @@ function updateAuthMethodUi() {
   const meta = registerMethods[method] || registerMethods.email;
   els.authIdentifierLabel.textContent = meta.label;
   els.authUsername.placeholder = meta.placeholder;
+  resetVerification();
+}
+
+function resetVerification() {
+  verificationState.key = null;
+  verificationState.code = null;
+  verificationState.expiresAt = 0;
+  if (els.authCode) els.authCode.value = "";
+}
+
+function generateVerificationCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function sendVerificationCode() {
+  const method = els.authMethod.value;
+  const identifier = normalizeIdentifier(els.authUsername.value, method);
+  if (!validateIdentifier(method, identifier)) {
+    els.authMessage.textContent = `${methodLabel(method)}格式不正确，先检查账号。`;
+    return;
+  }
+
+  verificationState.key = accountKey(method, identifier);
+  verificationState.code = generateVerificationCode();
+  verificationState.expiresAt = Date.now() + VERIFICATION_TTL_MS;
+  els.authMessage.textContent = `验证码已发送到 ${methodLabel(method)}。本机演示验证码：${verificationState.code}，10 分钟内有效。`;
+  showToast("验证码已生成，请填写后再注册。");
+}
+
+function hasValidVerification(key) {
+  return verificationState.key === key
+    && verificationState.code === els.authCode.value.trim()
+    && Date.now() < verificationState.expiresAt;
 }
 
 function randomSalt() {
@@ -399,7 +587,10 @@ function setAuthMode(mode) {
   els.authPassword.autocomplete = isRegister ? "new-password" : "current-password";
   els.authDisplayNameWrap.hidden = !isRegister;
   els.authDisplayNameWrap.style.display = isRegister ? "grid" : "none";
+  els.authCodeWrap.hidden = !isRegister;
+  els.authCodeWrap.style.display = isRegister ? "grid" : "none";
   els.authMessage.textContent = "";
+  resetVerification();
 }
 
 async function handleAuthSubmit(event) {
@@ -420,6 +611,11 @@ async function handleAuthSubmit(event) {
       return;
     }
 
+    if (!hasValidVerification(key)) {
+      els.authMessage.textContent = "请先发送并填写正确的 6 位验证码。";
+      return;
+    }
+
     const salt = randomSalt();
     accounts[key] = {
       method,
@@ -428,6 +624,7 @@ async function handleAuthSubmit(event) {
       salt,
       passwordHash: await hashPassword(password, salt),
       createdAt: Date.now(),
+      verifiedAt: Date.now(),
     };
     writeAccounts(accounts);
     migrateLegacyStats(key);
@@ -532,6 +729,11 @@ function buildToeflLesson(dayNumber, stageIndex) {
     day.sentence,
     day.prompt,
   ];
+  const writtenLines = [
+    `Written expression: ${day.word} can be used to explain ${day.phrase}.`,
+    `Written expression: ${day.sentence}`,
+    `Written expression: A complete response should include ${day.word}, ${day.phrase}, and one clear reason.`,
+  ];
   const stageMeanings = [
     `${day.word}: ${day.meaning}；词组：${day.phrase}`,
     `语法：${day.grammar}；把词组放进完整学术句。`,
@@ -547,6 +749,7 @@ function buildToeflLesson(dayNumber, stageIndex) {
     scenarioName: `TOEFL Day ${day.day}`,
     level: "work",
     line: stageLines[stage],
+    written: writtenLines[stage],
     romanization: `${day.word} / ${day.phrase}`,
     meaning: stageMeanings[stage],
     keywords: day.keywords,
@@ -582,11 +785,27 @@ function renderLesson() {
   els.lineTitle.textContent = lesson.scenarioName;
   els.targetLine.textContent = lesson.line;
   els.romanization.textContent = lesson.romanization;
+  els.writtenExpression.textContent = lesson.written || `Written expression: ${lesson.line}`;
   els.meaning.textContent = lesson.meaning;
+  setMeaningVisible(false);
   els.transcript.textContent = `点击“开始跟读”，匹配度达到 ${PASS_SCORE}% 才能过关。`;
   els.scoreValue.textContent = "--";
+  els.dictationBox.hidden = true;
+  els.dictationInput.value = "";
+  els.listeningHint.textContent = "先听懂，再跟读；听写可以辅助校准细节。";
   drawWave(lesson.line.length);
   renderCurriculum();
+}
+
+function setMeaningVisible(visible) {
+  els.meaning.hidden = !visible;
+  els.meaningHint.textContent = visible
+    ? "中文意思已展开；再次点击英文内容可收起。"
+    : "点击英文句子、书面表达、单词或短语查看中文意思。";
+}
+
+function toggleMeaning() {
+  setMeaningVisible(els.meaning.hidden);
 }
 
 function renderDialogue(showHint = false) {
@@ -624,9 +843,9 @@ function renderPhrases() {
       (lesson) => `
         <article class="phrase-card">
           <span class="small-label">${lesson.source === "toefl" ? "TOEFL" : lesson.language === "cantonese" ? "粤语" : "英语"} · ${lesson.scenarioName}</span>
-          <strong>${lesson.line}</strong>
+          <strong data-reveal-meaning role="button" tabindex="0">${lesson.line}</strong>
           <p>${lesson.romanization}</p>
-          <p>${lesson.meaning}</p>
+          <p class="meaning" hidden>${lesson.meaning}</p>
           <button type="button" data-practice="${lesson.id}">练这句</button>
         </article>
       `,
@@ -665,14 +884,15 @@ function renderCurriculum() {
   els.toeflFocus.innerHTML = [
     ["词汇", `${day.word} · ${day.meaning}`, `今天所有句子都围绕 ${day.word} 展开。`],
     ["词组", day.phrase, "先把词组说稳，再放入句子。"],
+    ["辅助词", day.relatedWords.join(" / "), "听力里遇到相近表达时，也要能抓住关键词。"],
     ["语法", day.grammar, "语法不是单独背，直接连到目标句。"],
     ["句子", day.sentence, "95 分后自动进入下一阶段。"],
   ]
     .map(([label, title, text]) => `
       <div class="focus-item">
         <span>${label}</span>
-        <strong>${title}</strong>
-        <p>${text}</p>
+        <strong data-reveal-meaning role="button" tabindex="0">${title}</strong>
+        <p class="meaning" hidden>${text}</p>
       </div>
     `)
     .join("");
@@ -710,19 +930,76 @@ function calculateStreak() {
   return streak;
 }
 
-function speak(text, language) {
+function speak(text, language, options = {}) {
   if (!("speechSynthesis" in window)) {
     showToast("这个浏览器不支持朗读，可以先自己按拼读提示练。");
     return;
   }
 
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = language === "cantonese" ? "yue-HK" : "en-US";
-  utterance.rate = language === "cantonese" ? 0.82 : 0.88;
-  utterance.pitch = 1;
-  window.speechSynthesis.speak(utterance);
+  const repeat = Math.max(1, options.repeat || 1);
+  const baseRate = language === "cantonese" ? 0.82 : 0.88;
+  const rate = options.slow ? baseRate * 0.72 : baseRate;
+  const speakOnce = (count) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = language === "cantonese" ? "yue-HK" : "en-US";
+    utterance.rate = rate;
+    utterance.pitch = 1;
+    utterance.onend = () => {
+      if (count < repeat) {
+        window.setTimeout(() => speakOnce(count + 1), 360);
+      } else {
+        drawWave(text.length);
+      }
+    };
+    window.speechSynthesis.speak(utterance);
+  };
+  speakOnce(1);
   drawWave(text.length, true);
+}
+
+function startDictation() {
+  const lesson = currentLesson();
+  els.dictationBox.hidden = false;
+  els.dictationInput.value = "";
+  els.dictationInput.focus();
+  els.listeningHint.textContent = "听写模式：先听，不看中文；写完后检查和原句的相似度。";
+  speak(lesson.line, lesson.language, { slow: true, repeat: 2 });
+}
+
+function checkDictation() {
+  const lesson = currentLesson();
+  const typed = els.dictationInput.value.trim();
+  if (!typed) {
+    showToast("先写下你听到的内容，再检查。");
+    return;
+  }
+  const score = scoreTranscript(typed, lesson);
+  els.transcript.textContent = `听写：${typed}`;
+  els.scoreValue.textContent = `${score}%`;
+  state.stats.bestScores = state.stats.bestScores || {};
+  state.stats.bestScores[lesson.id] = Math.max(state.stats.bestScores[lesson.id] || 0, score);
+  state.stats.attempts += 1;
+  state.stats.history.unshift({
+    text: `听写 ${lesson.line}`,
+    score,
+    time: Date.now(),
+  });
+  state.stats.history = state.stats.history.slice(0, 12);
+  addPracticeMinute(1);
+  if (score >= PASS_SCORE) {
+    clearReviewItem(lesson.id);
+    markLessonPassed(lesson);
+    saveStats();
+    renderStats();
+    renderLesson();
+    showToast("听写达到 95%，可以进入跟读巩固。");
+  } else {
+    queueForReview(lesson, score);
+    saveStats();
+    renderStats();
+    showToast(`听写 ${score}%，已加入巩固队列。`);
+  }
 }
 
 function startRecognition() {
@@ -990,6 +1267,23 @@ function escapeHtml(value) {
   });
 }
 
+function toggleInlineMeaning(trigger) {
+  const card = trigger.closest(".focus-item, .phrase-card");
+  const meaning = card?.querySelector(".meaning");
+  if (!meaning) return false;
+  meaning.hidden = !meaning.hidden;
+  return true;
+}
+
+function bindRevealTrigger(element, callback) {
+  element.addEventListener("click", callback);
+  element.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    callback();
+  });
+}
+
 function bindEvents() {
   [els.languageSelect, els.scenarioSelect, els.levelSelect].forEach((control) => {
     control.addEventListener("change", () => {
@@ -1034,6 +1328,25 @@ function bindEvents() {
     speak(lesson.line, lesson.language);
   });
 
+  els.slowListenButton.addEventListener("click", () => {
+    const lesson = currentLesson();
+    els.listeningHint.textContent = "慢速听一遍，注意重音、停顿和结尾音。";
+    speak(lesson.line, lesson.language, { slow: true });
+  });
+
+  els.loopListenButton.addEventListener("click", () => {
+    const lesson = currentLesson();
+    els.listeningHint.textContent = "循环 3 遍：第一遍听意思，第二遍听关键词，第三遍准备跟读。";
+    speak(lesson.line, lesson.language, { slow: true, repeat: 3 });
+  });
+
+  els.dictationButton.addEventListener("click", startDictation);
+  els.checkDictationButton.addEventListener("click", checkDictation);
+
+  [els.targetLine, els.romanization, els.writtenExpression].forEach((element) => {
+    bindRevealTrigger(element, toggleMeaning);
+  });
+
   els.recordButton.addEventListener("click", startRecognition);
   els.masteredButton.addEventListener("click", markMastered);
 
@@ -1046,6 +1359,19 @@ function bindEvents() {
   els.customReply.addEventListener("input", () => renderDialogue(false));
   els.phraseSearch.addEventListener("input", renderPhrases);
 
+  els.toeflFocus.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-reveal-meaning]");
+    if (trigger) toggleInlineMeaning(trigger);
+  });
+
+  els.toeflFocus.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const trigger = event.target.closest("[data-reveal-meaning]");
+    if (!trigger) return;
+    event.preventDefault();
+    toggleInlineMeaning(trigger);
+  });
+
   document.querySelectorAll(".segmented button").forEach((button) => {
     button.addEventListener("click", () => {
       document.querySelectorAll(".segmented button").forEach((item) => item.classList.remove("active"));
@@ -1056,6 +1382,12 @@ function bindEvents() {
   });
 
   els.phraseList.addEventListener("click", (event) => {
+    const meaningTrigger = event.target.closest("[data-reveal-meaning]");
+    if (meaningTrigger) {
+      toggleInlineMeaning(meaningTrigger);
+      return;
+    }
+
     const button = event.target.closest("[data-practice]");
     if (!button) return;
     const lesson = lessons.find((item) => item.id === button.dataset.practice)
@@ -1078,6 +1410,14 @@ function bindEvents() {
     renderLesson();
     document.querySelector("#practice").scrollIntoView({ behavior: "smooth" });
   });
+
+  els.phraseList.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const trigger = event.target.closest("[data-reveal-meaning]");
+    if (!trigger) return;
+    event.preventDefault();
+    toggleInlineMeaning(trigger);
+  });
 }
 
 function syncStageProgress() {
@@ -1090,6 +1430,11 @@ function syncStageProgress() {
 function bindAuthEvents() {
   els.authForm.addEventListener("submit", handleAuthSubmit);
   els.authMethod.addEventListener("change", updateAuthMethodUi);
+  els.authUsername.addEventListener("input", resetVerification);
+  els.authCode.addEventListener("input", () => {
+    els.authCode.value = els.authCode.value.replace(/\D/g, "").slice(0, 6);
+  });
+  els.sendCodeButton.addEventListener("click", sendVerificationCode);
   els.authModeButton.addEventListener("click", () => {
     setAuthMode(state.authMode === "login" ? "register" : "login");
   });

@@ -104,6 +104,12 @@ body:not(.auth-locked) .auth-screen {
   gap: 12px;
 }
 
+.auth-code-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
 .auth-form label {
   display: grid;
   gap: 7px;
@@ -450,11 +456,26 @@ svg {
 }
 
 .target-line {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
+  text-align: left;
   margin: 0;
   font-size: clamp(2rem, 5vw, 4.6rem);
   font-weight: 850;
   line-height: 1.02;
   letter-spacing: 0;
+}
+
+.reveal-trigger {
+  cursor: pointer;
+}
+
+.reveal-trigger:focus-visible {
+  outline: 3px solid rgba(19, 95, 99, 0.24);
+  outline-offset: 5px;
 }
 
 .romanization {
@@ -464,11 +485,30 @@ svg {
   font-weight: 800;
 }
 
+.written-expression {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 850;
+  line-height: 1.5;
+}
+
 .meaning {
   margin: 0;
   color: var(--muted);
   font-size: 1rem;
   line-height: 1.6;
+}
+
+.meaning[hidden] {
+  display: none;
+}
+
+.meaning-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
 
 .wave-card {
@@ -502,6 +542,52 @@ svg {
     transform 160ms ease,
     box-shadow 160ms ease,
     background 160ms ease;
+}
+
+.listening-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: white;
+}
+
+.listening-tools span {
+  color: var(--muted);
+  font-size: 0.925rem;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.dictation-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.dictation-box[hidden] {
+  display: none;
+}
+
+.dictation-box textarea {
+  width: 100%;
+  min-height: 64px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: white;
+  color: var(--ink);
+  padding: 11px 12px;
+  resize: vertical;
+  outline: none;
+}
+
+.dictation-box textarea:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 4px rgba(19, 95, 99, 0.12);
 }
 
 .primary-action {
@@ -659,6 +745,16 @@ svg {
   margin: 6px 0 0;
   color: var(--muted);
   line-height: 1.5;
+}
+
+.focus-item [data-reveal-meaning],
+.phrase-card [data-reveal-meaning] {
+  cursor: pointer;
+}
+
+.focus-item .meaning,
+.phrase-card .meaning {
+  margin-top: 8px;
 }
 
 .source-note {
@@ -988,6 +1084,7 @@ svg {
   .action-row,
   .feedback-panel,
   .phrase-tools,
+  .listening-tools,
   .reply-actions {
     align-items: stretch;
     flex-direction: column;
@@ -1006,6 +1103,11 @@ svg {
   .ghost-action,
   .phrase-tools input {
     width: 100%;
+  }
+
+  .auth-code-row,
+  .dictation-box {
+    grid-template-columns: 1fr;
   }
 
   .target-line {
