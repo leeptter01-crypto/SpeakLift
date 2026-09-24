@@ -732,6 +732,38 @@ body.level-complete .quest-hud {
   font-size: 0.83rem;
 }
 
+.continue-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid rgba(242, 109, 85, 0.32);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(242, 109, 85, 0.12), rgba(244, 189, 66, 0.14)),
+    white;
+  padding: 16px;
+  box-shadow: 0 14px 28px rgba(242, 109, 85, 0.12);
+}
+
+.continue-panel[hidden] {
+  display: none;
+}
+
+.continue-panel p {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 850;
+  line-height: 1.45;
+}
+
+button:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
 .section-grid,
 .curriculum-section,
 .phrase-section,
@@ -1224,6 +1256,7 @@ body.level-complete .quest-hud {
   .trainer-toolbar,
   .action-row,
   .feedback-panel,
+  .continue-panel,
   .phrase-tools,
   .listening-tools,
   .reply-actions {

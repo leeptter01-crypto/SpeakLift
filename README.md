@@ -17,7 +17,8 @@ SpeakLift is a bilingual speaking-practice app for English and Cantonese beginne
 - English, Cantonese, and mixed practice modes
 - Email, phone, and Google account identifiers
 - Local 6-digit verification code check during registration
-- Game-like level flow: one learning page at a time, with automatic advancement after passing a speaking or dictation task
+- Game-like level flow: one learning page at a time, with a "continue" gate after passing a speaking or dictation task
+- Speech recognition pauses after a short no-speech timeout, so the learner can tap again to continue
 - Calmer green-blue visual system with coral completion feedback and lightweight level animations
 - Listen-and-repeat practice with browser speech synthesis
 - Slow listening, 3-repeat loop listening, and dictation-assisted listening practice

@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#1f7a72" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=6" />
+    <link rel="stylesheet" href="./styles.css?v=7" />
   </head>
   <body class="auth-locked">
     <section class="auth-screen" id="authScreen" aria-labelledby="authTitle">
@@ -101,7 +101,7 @@
             <div class="panel-heading">
               <p class="eyebrow">今日 15 分钟</p>
               <h1 id="practice-title">第 1 关：开口</h1>
-              <p class="lead">一屏只练一句。听懂、跟读或听写达到 95 分后，自动进入下一关。</p>
+              <p class="lead">一屏只练一句。听懂、跟读或听写达到 95 分后，点“继续”进入下一关。</p>
             </div>
 
             <div class="daily-meter" aria-label="今日练习进度">
@@ -207,7 +207,7 @@
                   <path d="M5 11a7 7 0 0 0 14 0" />
                   <path d="M12 18v3" />
                 </svg>
-                开始跟读
+                <span id="recordButtonLabel">开始跟读</span>
               </button>
               <button class="ghost-action" id="masteredButton" type="button">暂存巩固</button>
             </div>
@@ -221,6 +221,14 @@
                 <strong id="scoreValue">--</strong>
                 <span>匹配度</span>
               </div>
+            </div>
+
+            <div class="continue-panel" id="continuePanel" hidden>
+              <div>
+                <span class="small-label">已过关</span>
+                <p id="continueText">本关完成，准备进入下一关。</p>
+              </div>
+              <button class="primary-action" id="continueButton" type="button">继续</button>
             </div>
           </div>
         </section>
@@ -336,6 +344,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js?v=6" type="module"></script>
+    <script src="./app.js?v=7" type="module"></script>
   </body>
 </html>

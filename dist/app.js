@@ -257,6 +257,7 @@ const dialogues = [
 ];
 
 const PASS_SCORE = 95;
+const SPEECH_TIMEOUT_MS = 6000;
 const QUESTS = [
   { id: "practice", title: "开口练习" },
   { id: "curriculum", title: "词汇连接" },
@@ -342,7 +343,12 @@ const state = {
   toeflDay: 1,
   toeflStage: 0,
   recognition: null,
+  recognitionTimer: null,
+  recognitionHadResult: false,
+  recognitionTimedOut: false,
+  recognitionManualStop: false,
   recognizing: false,
+  awaitingContinue: false,
   currentUser: null,
   authMode: "login",
   currentView: "practice",
@@ -397,10 +403,14 @@ const els = {
   checkDictationButton: document.querySelector("#checkDictationButton"),
   listeningHint: document.querySelector("#listeningHint"),
   recordButton: document.querySelector("#recordButton"),
+  recordButtonLabel: document.querySelector("#recordButtonLabel"),
   masteredButton: document.querySelector("#masteredButton"),
   nextLineButton: document.querySelector("#nextLineButton"),
   transcript: document.querySelector("#transcript"),
   scoreValue: document.querySelector("#scoreValue"),
+  continuePanel: document.querySelector("#continuePanel"),
+  continueText: document.querySelector("#continueText"),
+  continueButton: document.querySelector("#continueButton"),
   stageBridgeText: document.querySelector("#stageBridgeText"),
   startReviewButton: document.querySelector("#startReviewButton"),
   toeflDaySelect: document.querySelector("#toeflDaySelect"),
@@ -820,7 +830,7 @@ function renderQuestHud() {
     ? `第 ${levelNumber} 关 · ${currentLesson()?.scenarioName || "开口练习"}`
     : quest.title;
   els.questProgressText.textContent = state.currentView === "practice"
-    ? `${PASS_SCORE} 分过关 · 自动进入下一关`
+    ? `${PASS_SCORE} 分过关 · 点继续进入下一关`
     : `第 ${questIndex + 1} 页 / 共 ${QUESTS.length} 页`;
   els.questDots.innerHTML = QUESTS
     .map((item, index) => `<span class="${index === questIndex ? "active" : index < questIndex ? "done" : ""}"></span>`)
@@ -837,9 +847,52 @@ function playLevelAdvance(message) {
   renderQuestHud();
 }
 
+function setRecordButtonText(text) {
+  els.recordButtonLabel.textContent = text;
+}
+
+function clearRecognitionTimer() {
+  window.clearTimeout(state.recognitionTimer);
+  state.recognitionTimer = null;
+}
+
+function setPracticeControlsPaused(paused) {
+  [
+    els.listenButton,
+    els.slowListenButton,
+    els.loopListenButton,
+    els.dictationButton,
+    els.checkDictationButton,
+    els.recordButton,
+    els.masteredButton,
+    els.nextLineButton,
+  ].forEach((control) => {
+    control.disabled = paused;
+  });
+  els.dictationInput.disabled = paused;
+}
+
+function showContinueGate(message) {
+  state.awaitingContinue = true;
+  setPracticeControlsPaused(true);
+  els.continueText.textContent = message;
+  els.continuePanel.hidden = false;
+  els.continueButton.focus();
+  playLevelAdvance("本关已过，点击“继续”进入下一关。");
+}
+
+function continueToNextLevel() {
+  state.awaitingContinue = false;
+  els.continuePanel.hidden = true;
+  setPracticeControlsPaused(false);
+  renderLesson();
+  playLevelAdvance("已进入下一关。");
+}
+
 function renderLesson() {
   const lesson = currentLesson();
   const levelNumber = currentLevelNumber();
+  state.awaitingContinue = false;
   els.practiceTitle.textContent = `第 ${levelNumber} 关：开口`;
   els.scenarioTag.textContent = lesson.source === "toefl"
     ? `TOEFL · Day ${lesson.day} · ${toeflStages[lesson.stage]}`
@@ -854,6 +907,9 @@ function renderLesson() {
   els.scoreValue.textContent = "--";
   els.dictationBox.hidden = true;
   els.dictationInput.value = "";
+  els.continuePanel.hidden = true;
+  setPracticeControlsPaused(false);
+  setRecordButtonText("开始跟读");
   els.listeningHint.textContent = "先听懂，再跟读；听写可以辅助校准细节。";
   drawWave(lesson.line.length);
   renderCurriculum();
@@ -949,7 +1005,7 @@ function renderCurriculum() {
     ["词组", day.phrase, "先把词组说稳，再放入句子。"],
     ["辅助词", day.relatedWords.join(" / "), "听力里遇到相近表达时，也要能抓住关键词。"],
     ["语法", day.grammar, "语法不是单独背，直接连到目标句。"],
-    ["句子", day.sentence, "95 分后自动进入下一阶段。"],
+    ["句子", day.sentence, "95 分后点继续进入下一阶段。"],
   ]
     .map(([label, title, text]) => `
       <div class="focus-item">
@@ -1022,6 +1078,10 @@ function speak(text, language, options = {}) {
 }
 
 function startDictation() {
+  if (state.awaitingContinue) {
+    showToast("本关已经过关，点击“继续”进入下一关。");
+    return;
+  }
   const lesson = currentLesson();
   els.dictationBox.hidden = false;
   els.dictationInput.value = "";
@@ -1035,6 +1095,10 @@ function checkDictation() {
   const typed = els.dictationInput.value.trim();
   if (!typed) {
     showToast("先写下你听到的内容，再检查。");
+    return;
+  }
+  if (state.awaitingContinue) {
+    showToast("本关已经过关，点击“继续”进入下一关。");
     return;
   }
   const score = scoreTranscript(typed, lesson);
@@ -1055,8 +1119,7 @@ function checkDictation() {
     markLessonPassed(lesson);
     saveStats();
     renderStats();
-    renderLesson();
-    playLevelAdvance("听写达到 95%，已进入下一关。");
+    showContinueGate("听写达到 95%。点击继续，进入下一关。");
   } else {
     queueForReview(lesson, score);
     saveStats();
@@ -1067,12 +1130,18 @@ function checkDictation() {
 
 function startRecognition() {
   const lesson = currentLesson();
+  if (state.awaitingContinue) {
+    showToast("本关已经过关，点击“继续”进入下一关。");
+    return;
+  }
   if (!SpeechRecognition) {
     recordFallback(lesson);
     return;
   }
 
   if (state.recognizing) {
+    state.recognitionManualStop = true;
+    clearRecognitionTimer();
     state.recognition.stop();
     return;
   }
@@ -1081,29 +1150,62 @@ function startRecognition() {
   state.recognition.lang = lesson.language === "cantonese" ? "yue-HK" : "en-US";
   state.recognition.interimResults = false;
   state.recognition.maxAlternatives = 1;
+  state.recognition.continuous = false;
   state.recognizing = true;
+  state.recognitionHadResult = false;
+  state.recognitionTimedOut = false;
+  state.recognitionManualStop = false;
   els.recordButton.classList.add("is-recording");
-  els.recordButton.lastChild.textContent = " 正在听...";
-  els.transcript.textContent = "请说出屏幕上的句子。";
+  setRecordButtonText("正在听...");
+  els.transcript.textContent = `请在 ${Math.round(SPEECH_TIMEOUT_MS / 1000)} 秒内说出屏幕上的句子。`;
   drawWave(lesson.line.length, true);
+  state.recognitionTimer = window.setTimeout(() => {
+    if (!state.recognizing || state.recognitionHadResult) return;
+    state.recognitionTimedOut = true;
+    els.transcript.textContent = `这次没有识别到语音，已暂停。再按“继续跟读”重新开始。`;
+    showToast("没有识别到，已暂停。");
+    try {
+      state.recognition.abort();
+    } catch {
+      state.recognition.stop();
+    }
+  }, SPEECH_TIMEOUT_MS);
 
   state.recognition.onresult = (event) => {
+    state.recognitionHadResult = true;
+    clearRecognitionTimer();
     const transcript = event.results[0][0].transcript;
     evaluateSpeech(transcript, lesson);
   };
 
-  state.recognition.onerror = () => {
-    showToast("没有听清楚。换个安静环境，或用“我会说了”记录一次练习。");
+  state.recognition.onerror = (event) => {
+    clearRecognitionTimer();
+    if (state.recognitionTimedOut || event.error === "aborted") return;
+    state.recognitionTimedOut = event.error === "no-speech";
+    els.transcript.textContent = "没有听清楚，已暂停。再按“继续跟读”重新开始。";
+    showToast("没有听清楚，已暂停。");
   };
 
   state.recognition.onend = () => {
+    clearRecognitionTimer();
     state.recognizing = false;
     els.recordButton.classList.remove("is-recording");
-    els.recordButton.lastChild.textContent = " 开始跟读";
+    setRecordButtonText((state.recognitionTimedOut || state.recognitionManualStop) ? "继续跟读" : "开始跟读");
+    if (state.recognitionManualStop && !state.recognitionHadResult) {
+      els.transcript.textContent = "已暂停。再按“继续跟读”重新开始。";
+    }
     drawWave(lesson.line.length);
   };
 
-  state.recognition.start();
+  try {
+    state.recognition.start();
+  } catch {
+    clearRecognitionTimer();
+    state.recognizing = false;
+    els.recordButton.classList.remove("is-recording");
+    setRecordButtonText("继续跟读");
+    els.transcript.textContent = "语音识别没有启动成功，再按一次试试。";
+  }
 }
 
 function recordFallback(lesson) {
@@ -1112,6 +1214,10 @@ function recordFallback(lesson) {
 }
 
 function evaluateSpeech(transcript, lesson) {
+  if (state.awaitingContinue) {
+    showToast("本关已经过关，点击“继续”进入下一关。");
+    return;
+  }
   const score = scoreTranscript(transcript, lesson);
   els.transcript.textContent = transcript;
   els.scoreValue.textContent = `${score}%`;
@@ -1133,13 +1239,13 @@ function evaluateSpeech(transcript, lesson) {
   saveStats();
   renderStats();
   if (score >= PASS_SCORE) {
-    renderLesson();
+    showContinueGate(`${score}% 过关。点击继续，进入下一关。`);
   } else {
     renderCurriculum();
   }
 
   if (score >= PASS_SCORE) {
-    playLevelAdvance("95 分过关，已自动进入下一关。");
+    return;
   } else {
     showToast(`当前 ${score}%，已加入巩固队列。`);
   }
@@ -1412,6 +1518,7 @@ function bindEvents() {
 
   els.dictationButton.addEventListener("click", startDictation);
   els.checkDictationButton.addEventListener("click", checkDictation);
+  els.continueButton.addEventListener("click", continueToNextLevel);
 
   [els.targetLine, els.romanization, els.writtenExpression].forEach((element) => {
     bindRevealTrigger(element, toggleMeaning);
