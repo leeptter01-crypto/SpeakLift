@@ -342,6 +342,7 @@ const state = {
   lineIndex: 0,
   dialogueIndex: 0,
   phraseFilter: "all",
+  phrasePage: 0,
   studyMode: "scene",
   toeflDay: 1,
   toeflStage: 0,
@@ -924,6 +925,11 @@ function populateScenarios() {
 
 function showQuestView(viewId, options = {}) {
   const nextView = QUESTS.some((quest) => quest.id === viewId) ? viewId : "practice";
+  if (nextView === "phrases" && state.currentView !== "phrases") {
+    els.phraseSearch.value = "";
+    state.phrasePage = 0;
+    renderPhrases();
+  }
   if (nextView !== state.currentView) {
     stopRecognition();
     cancelPlayback();
@@ -1136,6 +1142,15 @@ function renderDialogue(showHint = false) {
 
 function renderPhrases() {
   const query = els.phraseSearch.value.trim().toLowerCase();
+  const status = document.querySelector("#phraseStatus");
+  const pagination = document.querySelector("#phrasePagination");
+  els.phraseList.hidden = !query;
+  pagination.hidden = true;
+  if (!query) {
+    els.phraseList.replaceChildren();
+    status.textContent = "";
+    return;
+  }
   const curriculumLessons = toeflPlan.flatMap((day) => [0, 1, 2].map((stage) => buildToeflLesson(day.day, stage)));
   const cards = [...lessons, ...curriculumLessons].filter((lesson) => {
     const filterMatch =
@@ -1144,7 +1159,15 @@ function renderPhrases() {
     return filterMatch && text.includes(query);
   });
 
-  els.phraseList.innerHTML = cards
+  const pageSize = 3;
+  const pageCount = Math.ceil(cards.length / pageSize);
+  state.phrasePage = Math.min(state.phrasePage, Math.max(0, pageCount - 1));
+  status.textContent = cards.length ? `找到 ${cards.length} 句` : "没有找到匹配的句子";
+  pagination.hidden = pageCount <= 1;
+  document.querySelector("#phrasePageLabel").textContent = `${state.phrasePage + 1} / ${pageCount}`;
+  document.querySelector("#phrasePrevious").disabled = state.phrasePage === 0;
+  document.querySelector("#phraseNext").disabled = state.phrasePage >= pageCount - 1;
+  els.phraseList.innerHTML = cards.slice(state.phrasePage * pageSize, (state.phrasePage + 1) * pageSize)
     .map(
       (lesson) => `
         <article class="phrase-card">
@@ -1764,7 +1787,18 @@ function bindEvents() {
     renderDialogue(false);
   });
   els.customReply.addEventListener("input", () => renderDialogue(false));
-  els.phraseSearch.addEventListener("input", renderPhrases);
+  els.phraseSearch.addEventListener("input", () => {
+    state.phrasePage = 0;
+    renderPhrases();
+  });
+  document.querySelector("#phrasePrevious").addEventListener("click", () => {
+    state.phrasePage = Math.max(0, state.phrasePage - 1);
+    renderPhrases();
+  });
+  document.querySelector("#phraseNext").addEventListener("click", () => {
+    state.phrasePage += 1;
+    renderPhrases();
+  });
 
   els.toeflFocus.addEventListener("click", (event) => {
     const trigger = event.target.closest("[data-reveal-meaning]");
@@ -1784,6 +1818,7 @@ function bindEvents() {
       document.querySelectorAll(".segmented button").forEach((item) => item.classList.remove("active"));
       button.classList.add("active");
       state.phraseFilter = button.dataset.filter;
+      state.phrasePage = 0;
       renderPhrases();
     });
   });

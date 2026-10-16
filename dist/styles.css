@@ -178,6 +178,10 @@ textarea { resize:vertical; }
 .segmented button { white-space:nowrap; border:none; background:none; padding:8px 15px; color:var(--muted); border-radius:4px; }
 .segmented button.active { background:var(--teal); color:#fff; }
 .phrase-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.phrase-status { font-size:13px; color:var(--muted); margin:0 0 14px; }
+.phrase-status:empty { display:none; }
+.phrase-pagination { display:flex; align-items:center; justify-content:center; gap:18px; margin-top:22px; }
+.phrase-pagination span { font-size:13px; color:var(--muted); min-width:46px; text-align:center; }
 .phrase-card { display:grid; gap:12px; padding:20px; border:1px solid var(--line); border-radius:8px; background:#fff; }
 .phrase-card strong { font-size:18px; line-height:1.5; cursor:pointer; }
 .phrase-card p { margin:0; color:var(--muted); font-size:12px; }
