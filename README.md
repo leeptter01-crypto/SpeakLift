@@ -17,9 +17,9 @@ SpeakLift is a bilingual speaking-practice app for English and Cantonese beginne
 - English, Cantonese, and mixed practice modes
 - Email, phone, and Google account identifiers
 - Local 6-digit verification code check during registration
-- Game-like level flow: one learning page at a time, with a "continue" gate after passing a speaking or dictation task
+- Three-step lesson flow: vocabulary, listening dictation, then speaking; explicit Continue after each scored step
 - Speech recognition pauses after a short no-speech timeout, so the learner can tap again to continue
-- Calmer green-blue visual system with coral completion feedback and lightweight level animations
+- Focused desktop lesson workspace and compact mobile steps, with a separate learning path and review screen
 - Listen-and-repeat practice with browser speech synthesis
 - Slow listening, 3-repeat loop listening, and dictation-assisted listening practice
 - Speech recognition feedback when the browser supports it
@@ -27,12 +27,32 @@ SpeakLift is a bilingual speaking-practice app for English and Cantonese beginne
 - Original TOEFL-style 21-day curriculum connecting vocabulary, auxiliary words, phrases, grammar, written expression, and full sentences
 - English written expression under each speaking prompt, with Chinese meanings hidden until the learner taps the English sentence, word, or phrase
 - 95% read-aloud match threshold before a TOEFL stage is treated as passed
-- Review queue that accumulates any line below 95% for one-time consolidation later
+- Review queue that accumulates lines below 95%, plus 1/3/7/14-day review intervals after successful later reviews
 - Role-play dialogue drills
 - Searchable phrase library
 - Local progress tracking by account
 - PWA install support for mobile and desktop browsers
 - Windows desktop app launcher
+
+## Progress Model (v8)
+
+Listening and speaking have separate completion records. Dictation cannot complete a speaking lesson. Speaking requires the earlier vocabulary and listening steps, and a transcript match of at least 95%. The score compares recognized text; it is not acoustic pronunciation assessment. Browsers without speech recognition can defer a lesson, but typed text cannot stand in for a verified speaking result.
+
+The app saves the current course, sentence, step, and Continue gate per local account. Deferred sentences remain pending and do not increase the completed count. Review sessions use a fixed list so removing a passed item cannot skip the next one. Empty reviews and finished courses show an explicit completion state instead of silently loading unrelated content.
+
+Daily goals are 3, 5, or 8 distinct passed sentences. Repeating the same sentence on the same local calendar day does not increase the daily count or extend its review interval. Streaks include yesterday until today's practice is complete. Existing v7 completions and history are retained; legacy completions are labeled separately because v7 did not distinguish listening from speaking.
+
+## Checks
+
+```text
+node --test tests/learning.test.mjs
+node --check dist/app.js
+node tests/browser.cjs
+```
+
+The browser test requires Playwright and a local static server at `http://127.0.0.1:4186`; `SPEAKLIFT_TEST_URL` and `SPEAKLIFT_BROWSER` may override the URL and browser channel (default: msedge). It uses an isolated local test account and a mocked speech engine, including an engine that never emits `onend`. Screenshots are saved under ignored `test-results/`. Actual microphone capture and device-specific recognition still need a real-device check.
+
+See `docs/learning-layout-research.md` for reference findings and implementation choices. Lucide 0.468.0 is vendored in `dist/icons.js`; its license is retained alongside it.
 
 ## TOEFL Content Note
 

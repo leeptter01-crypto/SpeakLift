@@ -1,3 +1,5 @@
+import { PHASES, dateKey, daysAfter, normalizeLearning, recordFor, nextPhase, passListening, passSpeaking, deferLesson, dueIds, isUnlocked, streakDays } from "./learning.mjs?v=8";
+
 const lessons = [
   {
     id: "hello-en",
@@ -260,6 +262,7 @@ const PASS_SCORE = 95;
 const SPEECH_TIMEOUT_MS = 6000;
 const QUESTS = [
   { id: "practice", title: "开口练习" },
+  { id: "review", title: "复习" },
   { id: "curriculum", title: "词汇连接" },
   { id: "dialogue", title: "对话反应" },
   { id: "phrases", title: "句库补给" },
@@ -349,6 +352,13 @@ const state = {
   recognitionManualStop: false,
   recognizing: false,
   awaitingContinue: false,
+  lessonId: null,
+  phase: "learn",
+  reviewIds: [],
+  reviewFilter: "due",
+  sessionDone: false,
+  speechRun: 0,
+  playbackRun: 0,
   currentUser: null,
   authMode: "login",
   currentView: "practice",
@@ -380,7 +390,6 @@ const els = {
   questName: document.querySelector("#questName"),
   questProgressText: document.querySelector("#questProgressText"),
   questDots: document.querySelector("#questDots"),
-  todayMinutes: document.querySelector("#todayMinutes"),
   minuteBar: document.querySelector("#minuteBar"),
   practiceTitle: document.querySelector("#practice-title"),
   studyModeSelect: document.querySelector("#studyModeSelect"),
@@ -675,12 +684,14 @@ function unlockApp(key) {
 
 function normalizeStats(stats) {
   return {
+    ...stats,
     mastered: stats.mastered || [],
     attempts: stats.attempts || 0,
     minutesByDate: stats.minutesByDate || {},
     history: stats.history || [],
     bestScores: stats.bestScores || {},
     reviewQueue: stats.reviewQueue || [],
+    learning: normalizeLearning(stats.learning, stats.mastered || []),
     stageProgress: {
       day: stats.stageProgress?.day || 1,
       stage: stats.stageProgress?.stage || 0,
@@ -690,6 +701,7 @@ function normalizeStats(stats) {
 }
 
 function logout() {
+  stopRecognition();
   saveStats();
   state.currentUser = null;
   state.stats = null;
@@ -698,7 +710,7 @@ function logout() {
   els.authPassword.value = "";
   setAuthMode("login");
   document.body.classList.add("auth-locked");
-  window.speechSynthesis?.cancel();
+  cancelPlayback();
 }
 
 function restoreSession() {
@@ -712,7 +724,7 @@ function restoreSession() {
 }
 
 function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+  return dateKey();
 }
 
 function activeLessons() {
@@ -728,23 +740,12 @@ function activeLessons() {
 }
 
 function currentLesson() {
-  if (state.studyMode === "toefl") return buildToeflLesson(state.toeflDay, state.toeflStage);
-  if (state.studyMode === "review") return currentReviewLesson() || buildToeflLesson(state.toeflDay, state.toeflStage);
-  const filtered = activeLessons();
-  if (!filtered.length) return lessons[0];
-  return filtered[state.lineIndex % filtered.length];
+  if (state.sessionDone) return null;
+  return courseLessons().find(lesson => lesson.id === state.lessonId) || null;
 }
 
 function currentLevelNumber() {
-  if (state.studyMode === "toefl") {
-    return (state.toeflDay - 1) * toeflStages.length + state.toeflStage + 1;
-  }
-  if (state.studyMode === "review") {
-    const queueLength = Math.max(1, state.stats?.reviewQueue?.length || 0);
-    return (state.lineIndex % queueLength) + 1;
-  }
-  const filteredLength = Math.max(1, activeLessons().length);
-  return (state.lineIndex % filteredLength) + 1;
+  return Math.max(0, courseLessons().findIndex(lesson => lesson.id === state.lessonId)) + 1;
 }
 
 function buildToeflLesson(dayNumber, stageIndex) {
@@ -753,17 +754,17 @@ function buildToeflLesson(dayNumber, stageIndex) {
   const stageLines = [
     `The word ${day.word} often appears in academic speaking.`,
     day.sentence,
-    day.prompt,
+    `I think ${day.word} is important. For example, ${day.sentence.charAt(0).toLowerCase() + day.sentence.slice(1)}`,
   ];
   const writtenLines = [
     `Written expression: ${day.word} can be used to explain ${day.phrase}.`,
     `Written expression: ${day.sentence}`,
-    `Written expression: A complete response should include ${day.word}, ${day.phrase}, and one clear reason.`,
+    `Expression: ${day.phrase}`,
   ];
   const stageMeanings = [
     `${day.word}: ${day.meaning}；词组：${day.phrase}`,
     `语法：${day.grammar}；把词组放进完整学术句。`,
-    "把当天词汇、词组和语法合成一句自己的回答。",
+    `我认为 ${day.word} 很重要。下面用一个例子展开。`,
   ];
   return {
     id: `toefl-${day.day}-${stage}`,
@@ -782,12 +783,130 @@ function buildToeflLesson(dayNumber, stageIndex) {
   };
 }
 
-function currentReviewLesson() {
-  const queue = state.stats?.reviewQueue || [];
-  const first = queue.length ? queue[state.lineIndex % queue.length] : null;
-  if (!first) return null;
-  if (first.source === "toefl") return buildToeflLesson(first.day, first.stage);
-  return lessons.find((lesson) => lesson.id === first.id) || null;
+function findLesson(id) {
+  const match = /^toefl-(\d+)-(\d)$/.exec(id || "");
+  if (match && Number(match[1]) >= 1 && Number(match[1]) <= 21 && Number(match[2]) <= 2) {
+    return buildToeflLesson(Number(match[1]), Number(match[2]));
+  }
+  return lessons.find(lesson => lesson.id === id) || null;
+}
+
+function courseLessons() {
+  if (state.studyMode === "toefl") return toeflPlan.flatMap(day => [0, 1, 2].map(stage => buildToeflLesson(day.day, stage)));
+  if (state.studyMode === "review") return state.reviewIds.map(findLesson).filter(Boolean);
+  return activeLessons();
+}
+
+function reviewDue() {
+  return dueIds(state.stats.learning, state.stats.reviewQueue).filter(findLesson);
+}
+
+function icons() {
+  window.lucide?.createIcons();
+}
+
+function persistCursor() {
+  state.stats.learning.cursor = {
+    mode: state.studyMode, language: els.languageSelect.value, level: els.levelSelect.value,
+    scenario: els.scenarioSelect.value, lessonId: state.lessonId, phase: state.phase,
+    gate: state.awaitingContinue, reviewIds: state.reviewIds, done: state.sessionDone,
+  };
+  saveStats();
+}
+
+function selectLesson(lesson) {
+  stopRecognition();
+  cancelPlayback();
+  state.lessonId = lesson?.id || null;
+  state.sessionDone = !lesson;
+  state.awaitingContinue = false;
+  state.phase = lesson ? nextPhase(state.stats.learning.records[lesson.id]) : "learn";
+  renderLesson();
+}
+
+function beginCourse() {
+  state.sessionDone = false;
+  const pool = courseLessons();
+  selectLesson(pool.find(lesson => {
+    const record = state.stats.learning.records[lesson.id];
+    return !record?.speak && !record?.deferred;
+  }));
+}
+
+function beginReview() {
+  state.studyMode = "review";
+  state.reviewIds = reviewDue();
+  selectLesson(courseLessons()[0]);
+  showQuestView("practice");
+}
+
+function advanceLesson() {
+  const pool = courseLessons();
+  const index = pool.findIndex(lesson => lesson.id === state.lessonId);
+  selectLesson(pool[index + 1] || null);
+}
+
+const sceneVocabulary = {
+  hello: [["hello", "你好"], ["nice to meet you", "很高兴认识你"]],
+  intro: [["my name", "我的名字"], ["learning", "正在学习"]],
+  coffee: [["a hot latte", "一杯热拿铁"], ["Could I have…?", "我可以要……吗？"]],
+  direction: [["excuse me", "不好意思；劳驾"], ["metro station", "地铁站"]],
+  work: [["send an update", "发送最新进展"], ["before five", "五点以前"]],
+  weather: [["weather", "天气"], ["today", "今天"]],
+  help: [["help me", "帮助我"], ["word", "单词"]],
+  schedule: [["available", "有空的"], ["this afternoon", "今天下午"]],
+  restaurant: [["I would like…", "我想要……"], ["chicken set", "鸡肉套餐"]],
+  opinion: [["in my opinion", "在我看来"], ["practical", "实际的；可行的"]],
+  clarify: [["clarify", "澄清；说明"], ["main point", "重点"]],
+};
+
+function vocabularyFor(lesson) {
+  if (lesson.source === "toefl") {
+    const day = toeflPlan[lesson.day - 1];
+    const meanings = ["因果", "承担责任", "长期益处", "与……相比", "持续下降", "支持性证据", "一个主要因素", "检验假设", "说明一个观点", "证明决定合理", "维持平衡", "获得信息", "预测结果", "相关细节", "显著变化", "挑战理论", "控制变量", "适应变化", "复杂的过程", "源自证据", "建立规律"];
+    return [[day.word, day.meaning], [day.phrase, meanings[lesson.day - 1]]];
+  }
+  if (lesson.language === "cantonese") return [[lesson.line, lesson.meaning]];
+  return sceneVocabulary[lesson.scenario] || [[lesson.line, lesson.meaning]];
+}
+
+function renderPath() {
+  const pool = courseLessons();
+  const learning = state.stats.learning;
+  const completed = pool.filter(lesson => learning.records[lesson.id]?.speak).length;
+  const ids = pool.map(lesson => lesson.id);
+  document.querySelector("#pathCount").textContent = `${completed} / ${pool.length}`;
+  document.querySelector("#pathSummary").textContent = `已完成 ${completed} 句 · 共 ${pool.length} 句`;
+  document.querySelector("#courseLabel").textContent = state.studyMode === "toefl" ? "TOEFL · 21 天" : state.studyMode === "review" ? "本轮复习" : `${els.languageSelect.selectedOptions[0].textContent} · ${els.levelSelect.selectedOptions[0].textContent}`;
+  document.querySelector("#learningPath").innerHTML = pool.map((lesson, index) => {
+    const record = learning.records[lesson.id];
+    const current = lesson.id === state.lessonId && !state.sessionDone;
+    const unlocked = state.studyMode === "review" || isUnlocked(ids, index, learning) || record?.speak || current;
+    const status = record?.deferred ? "待巩固" : record?.speak ? (record.legacy ? "旧版已完成" : "已过关") : current ? "正在学习" : unlocked ? "待开始" : "未解锁";
+    const symbol = record?.deferred ? "rotate-ccw" : record?.speak ? "check" : unlocked ? null : "lock";
+    return `<li><button type="button" data-path="${lesson.id}" class="path-item ${current ? "current" : record?.deferred ? "pending" : record?.speak ? "passed" : ""}" ${unlocked ? "" : "disabled"} ${current ? 'aria-current="step"' : ""}><span class="path-node">${symbol ? `<i data-lucide="${symbol}"></i>` : index + 1}</span><span><strong>${escapeHtml(lesson.source === "toefl" ? `Day ${lesson.day} · ${toeflStages[lesson.stage]}` : lesson.scenarioName)}</strong><small>${status}</small></span></button></li>`;
+  }).join("");
+  icons();
+}
+
+function renderReview() {
+  const due = reviewDue();
+  const learning = state.stats.learning;
+  const scheduled = Object.keys(learning.records).filter(id => learning.records[id].due > todayKey() && findLesson(id))
+    .sort((a, b) => learning.records[a].due.localeCompare(learning.records[b].due));
+  const items = state.reviewFilter === "due" ? due : scheduled;
+  document.querySelector("#dueCount").textContent = due.length;
+  document.querySelector("#dueSummary").textContent = due.length ? "未达标的内容优先，再回顾到期的句子。" : scheduled.length ? `下一次复习：${learning.records[scheduled[0]].due}` : "完成第一句后，会在这里安排复习。";
+  document.querySelector("#beginReviewButton").disabled = due.length === 0;
+  document.querySelector("#reviewBadge").hidden = !due.length;
+  document.querySelector("#reviewBadge").textContent = due.length;
+  document.querySelector("#reviewList").innerHTML = items.length ? items.map(id => {
+    const lesson = findLesson(id);
+    const record = learning.records[id];
+    const pending = state.stats.reviewQueue.some(item => item.id === id) || record?.deferred;
+    return `<article class="review-row"><div><strong>${escapeHtml(lesson.line)}</strong><p>${escapeHtml(lesson.scenarioName)} · ${pending ? "待巩固" : `复习日期 ${record?.due}`} · 跟读最佳 ${record?.bestSpeaking || "--"}%</p></div><button type="button" class="icon-button" data-review-id="${id}" title="练习这句" aria-label="练习这句"><i data-lucide="play"></i></button></article>`;
+  }).join("") : `<div class="empty-state"><i data-lucide="circle-check"></i><strong>${state.reviewFilter === "due" ? "今天的复习已完成" : "还没有安排"}</strong><p>${state.reviewFilter === "due" ? "可以继续学习，也可以安心休息。" : "过关后会安排第 1、3、7、14 天间隔的复习。"}</p></div>`;
+  icons();
 }
 
 function populateScenarios() {
@@ -805,6 +924,10 @@ function populateScenarios() {
 
 function showQuestView(viewId, options = {}) {
   const nextView = QUESTS.some((quest) => quest.id === viewId) ? viewId : "practice";
+  if (nextView !== state.currentView) {
+    stopRecognition();
+    cancelPlayback();
+  }
   state.currentView = nextView;
   els.questPages.forEach((page) => {
     const active = page.dataset.view === nextView;
@@ -817,6 +940,7 @@ function showQuestView(viewId, options = {}) {
     button.setAttribute("aria-current", active ? "page" : "false");
   });
   renderQuestHud();
+  if (nextView === "review") renderReview();
   if (options.scroll !== false) {
     document.querySelector(".quest-main").scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -825,15 +949,11 @@ function showQuestView(viewId, options = {}) {
 function renderQuestHud() {
   const questIndex = Math.max(0, QUESTS.findIndex((quest) => quest.id === state.currentView));
   const quest = QUESTS[questIndex] || QUESTS[0];
-  const levelNumber = currentLevelNumber();
-  els.questName.textContent = state.currentView === "practice"
-    ? `第 ${levelNumber} 关 · ${currentLesson()?.scenarioName || "开口练习"}`
-    : quest.title;
-  els.questProgressText.textContent = state.currentView === "practice"
-    ? `${PASS_SCORE} 分过关 · 点继续进入下一关`
-    : `第 ${questIndex + 1} 页 / 共 ${QUESTS.length} 页`;
-  els.questDots.innerHTML = QUESTS
-    .map((item, index) => `<span class="${index === questIndex ? "active" : index < questIndex ? "done" : ""}"></span>`)
+  const learning = state.stats.learning;
+  const count = learning.daily[todayKey()]?.length || 0;
+  els.questName.textContent = state.currentView === "practice" ? (state.studyMode === "review" ? "复习，也是在前进" : "让开口，成为日常") : quest.title;
+  els.questProgressText.textContent = `今日完成 ${count} / ${learning.goal} 句`;
+  els.questDots.innerHTML = Array.from({ length: learning.goal }, (_, index) => `<span class="${index < count ? "done" : ""}"></span>`)
     .join("");
 }
 
@@ -854,6 +974,20 @@ function setRecordButtonText(text) {
 function clearRecognitionTimer() {
   window.clearTimeout(state.recognitionTimer);
   state.recognitionTimer = null;
+}
+
+function stopRecognition() {
+  state.speechRun += 1;
+  clearRecognitionTimer();
+  const recognition = state.recognition;
+  state.recognition = null;
+  state.recognizing = false;
+  els.recordButton.classList.remove("is-recording");
+  setRecordButtonText("开始跟读");
+  if (recognition) {
+    recognition.onresult = recognition.onerror = recognition.onend = null;
+    try { recognition.abort(); } catch { /* The browser may have already stopped. */ }
+  }
 }
 
 function setPracticeControlsPaused(paused) {
@@ -877,50 +1011,103 @@ function showContinueGate(message) {
   setPracticeControlsPaused(true);
   els.continueText.textContent = message;
   els.continuePanel.hidden = false;
+  els.dictationBox.hidden = true;
+  document.querySelector(".action-row").hidden = true;
+  document.querySelector(".listening-tools").hidden = true;
+  const completedStep = document.querySelector("#lessonStepper .current");
+  if (completedStep) {
+    completedStep.className = "done";
+    completedStep.querySelector("b").innerHTML = '<i data-lucide="check"></i>';
+    icons();
+  }
+  document.querySelector("#continueLabel").textContent = state.phase === "listen" ? "听辨完成" : "本关已过";
+  persistCursor();
   els.continueButton.focus();
-  playLevelAdvance("本关已过，点击“继续”进入下一关。");
+  playLevelAdvance(state.phase === "listen" ? "听辨通过，接下来开口说。" : "本关已过，点击继续。");
 }
 
 function continueToNextLevel() {
+  if (!state.awaitingContinue) return;
   state.awaitingContinue = false;
-  els.continuePanel.hidden = true;
-  setPracticeControlsPaused(false);
-  renderLesson();
-  playLevelAdvance("已进入下一关。");
+  if (state.phase === "listen") {
+    state.phase = "speak";
+    renderLesson();
+  } else {
+    advanceLesson();
+  }
 }
 
 function renderLesson() {
+  stopRecognition();
   const lesson = currentLesson();
+  document.querySelector("#trainerCard").hidden = !lesson;
+  document.querySelector("#sessionComplete").hidden = Boolean(lesson);
+  if (!lesson) {
+    const pool = courseLessons();
+    const completed = pool.filter(item => state.stats.learning.records[item.id]?.speak).length;
+    document.querySelector("#sessionCompleteTitle").textContent = pool.length ? "这一组，练完了" : state.studyMode === "review" ? "今天没有待复习内容" : "这个组合还没有课程";
+    document.querySelector("#sessionCompleteText").textContent = pool.length ? `${completed} / ${pool.length} 句已过关。${reviewDue().length ? `还有 ${reviewDue().length} 项等待巩固。` : "下次复习已安排，明天再进一步。"}` : "可以选择其他课程，或回顾已经学过的句子。";
+    document.querySelector("#restartCourseButton").disabled = !pool.length;
+    renderPath();
+    renderStats();
+    persistCursor();
+    return;
+  }
   const levelNumber = currentLevelNumber();
-  state.awaitingContinue = false;
-  els.practiceTitle.textContent = `第 ${levelNumber} 关：开口`;
+  const phase = state.phase;
+  document.querySelector("#trainerCard").dataset.phase = phase;
+  els.practiceTitle.textContent = state.studyMode === "review" ? "本轮复习" : "今天的学习";
   els.scenarioTag.textContent = lesson.source === "toefl"
     ? `TOEFL · Day ${lesson.day} · ${toeflStages[lesson.stage]}`
-    : lesson.language === "cantonese" ? "粤语 · " + lesson.level : "英语 · " + lesson.level;
-  els.lineTitle.textContent = lesson.scenarioName;
+    : `${lesson.language === "cantonese" ? "粤语" : "英语"} · 第 ${levelNumber} 关`;
+  els.lineTitle.textContent = lesson.source === "toefl" ? toeflPlan[lesson.day - 1].word : lesson.scenarioName;
   els.targetLine.textContent = lesson.line;
   els.romanization.textContent = lesson.romanization;
-  els.writtenExpression.textContent = lesson.written || `Written expression: ${lesson.line}`;
+  els.writtenExpression.textContent = lesson.source === "toefl" ? toeflPlan[lesson.day - 1].phrase : "";
   els.meaning.textContent = lesson.meaning;
   setMeaningVisible(false);
-  els.transcript.textContent = `点击“开始跟读”，匹配度达到 ${PASS_SCORE}% 才能过关。`;
+  els.transcript.textContent = phase === "listen" ? "听完后写下这句话。" : "准备好了，就说出这句话。";
   els.scoreValue.textContent = "--";
-  els.dictationBox.hidden = true;
+  els.dictationBox.hidden = phase !== "listen" || state.awaitingContinue;
   els.dictationInput.value = "";
-  els.continuePanel.hidden = true;
-  setPracticeControlsPaused(false);
+  els.continuePanel.hidden = !state.awaitingContinue;
+  setPracticeControlsPaused(state.awaitingContinue);
   setRecordButtonText("开始跟读");
-  els.listeningHint.textContent = "先听懂，再跟读；听写可以辅助校准细节。";
+  els.listeningHint.textContent = phase === "listen" ? "听写匹配达到 95%，再进入跟读。" : "每次识别 6 秒，可随时重新开始。";
+  document.querySelector("#vocabularyStage").hidden = phase !== "learn";
+  document.querySelector("#listeningPrompt").hidden = phase !== "listen";
+  document.querySelector("#phraseStage").hidden = phase !== "speak";
+  document.querySelector(".wave-card").hidden = phase !== "speak";
+  document.querySelector(".listening-tools").hidden = phase === "learn" || state.awaitingContinue;
+  document.querySelector(".action-row").hidden = phase === "learn" || state.awaitingContinue;
+  document.querySelector(".feedback-panel").hidden = !state.awaitingContinue;
+  document.querySelector("#speechNote").hidden = phase !== "speak";
+  els.recordButton.hidden = phase !== "speak";
+  els.dictationButton.hidden = true;
+  document.querySelector("#revealAnswerButton").textContent = "查看原句";
+  document.querySelector("#lessonStepper").innerHTML = ["认词", "听辨", "跟读"].map((label, index) => {
+    const current = PHASES.indexOf(phase);
+    const done = index < current || (index === current && state.awaitingContinue);
+    return `<li class="${done ? "done" : index === current ? "current" : ""}" ${index === current ? 'aria-current="step"' : ""}><b>${done ? '<i data-lucide="check"></i>' : index + 1}</b>${label}</li>`;
+  }).join("");
+  document.querySelector("#vocabularyItems").innerHTML = vocabularyFor(lesson).map(([word, meaning], index) => `<div class="word-row"><button type="button" class="word-meaning" data-vocab="${index}" aria-expanded="false"><strong>${escapeHtml(word)}</strong><span data-gloss="${escapeHtml(meaning)}">中文释义</span></button><button type="button" class="icon-button" data-word-audio="${index}" aria-label="朗读 ${escapeHtml(word)}" title="朗读"><i data-lucide="volume-2"></i></button></div>`).join("");
+  if (state.awaitingContinue) {
+    els.continueText.textContent = phase === "listen" ? "听辨已通过，下一步：跟读。" : `本关已过。下次复习：${state.stats.learning.records[lesson.id]?.due || "明天"}`;
+    document.querySelector("#continueLabel").textContent = phase === "listen" ? "听辨完成" : "本关已过";
+  }
   drawWave(lesson.line.length);
   renderCurriculum();
   renderQuestHud();
+  renderPath();
+  persistCursor();
 }
 
 function setMeaningVisible(visible) {
   els.meaning.hidden = !visible;
   els.meaningHint.textContent = visible
-    ? "中文意思已展开；再次点击英文内容可收起。"
-    : "点击英文句子、书面表达、单词或短语查看中文意思。";
+    ? "收起释义"
+    : "中文释义";
+  els.targetLine.setAttribute("aria-expanded", String(visible));
 }
 
 function toggleMeaning() {
@@ -973,11 +1160,13 @@ function renderPhrases() {
 }
 
 function renderStats() {
-  const today = state.stats.minutesByDate[todayKey()] || 0;
-  const masteredCount = state.stats.mastered.length;
+  const learning = state.stats.learning;
+  const today = learning.daily[todayKey()]?.length || 0;
+  const masteredCount = Object.values(learning.records).filter(record => record.speak).length;
   const streak = calculateStreak();
-  els.todayMinutes.textContent = today;
-  els.minuteBar.style.width = `${Math.min(100, (today / 15) * 100)}%`;
+  document.querySelector("#dailyCompleted").textContent = `${today} / ${learning.goal} 句`;
+  document.querySelector("#dailyGoalSelect").value = String(learning.goal);
+  els.minuteBar.style.width = `${Math.min(100, (today / learning.goal) * 100)}%`;
   els.streakDays.textContent = `${streak} 天`;
   els.masteredCount.textContent = `${masteredCount} 句`;
   els.attemptCount.textContent = `${state.stats.attempts} 次`;
@@ -987,11 +1176,19 @@ function renderStats() {
     ? history
         .map(
           (entry) =>
-            `<li><span>${entry.text}</span><time>${new Date(entry.time).toLocaleDateString("zh-CN")}</time></li>`,
+            `<li><span>${escapeHtml(entry.text)}</span><time>${new Date(entry.time).toLocaleDateString("zh-CN")}</time></li>`,
         )
         .join("")
     : "<li><span>今天完成第一句，就会出现在这里。</span><time>待开始</time></li>";
   renderCurriculum();
+  renderQuestHud();
+  renderReview();
+  renderPath();
+  document.querySelector("#weekStrip").innerHTML = Array.from({ length: 7 }, (_, index) => {
+    const key = daysAfter(todayKey(), index - 6);
+    const count = learning.daily[key]?.length || 0;
+    return `<div class="week-day ${count ? "done" : ""} ${index === 6 ? "today" : ""}"><span>${index === 6 ? "今天" : key.slice(5).replace("-", "/")}</span><b>${count ? `${count} 句` : "—"}</b></div>`;
+  }).join("");
 }
 
 function renderCurriculum() {
@@ -1001,7 +1198,7 @@ function renderCurriculum() {
   els.toeflStageSelect.value = String(state.toeflStage);
   els.studyModeSelect.value = state.studyMode;
   els.toeflFocus.innerHTML = [
-    ["词汇", `${day.word} · ${day.meaning}`, `今天所有句子都围绕 ${day.word} 展开。`],
+    ["词汇", day.word, day.meaning],
     ["词组", day.phrase, "先把词组说稳，再放入句子。"],
     ["辅助词", day.relatedWords.join(" / "), "听力里遇到相近表达时，也要能抓住关键词。"],
     ["语法", day.grammar, "语法不是单独背，直接连到目标句。"],
@@ -1031,22 +1228,17 @@ function renderCurriculum() {
     `).join("")
     : `<div class="queue-item"><span>清空</span><strong>暂时没有需要巩固的句子</strong><p>继续练，低于 ${PASS_SCORE}% 的句子会出现在这里。</p></div>`;
 
-  const nextText = state.studyMode === "review"
-    ? (queue.length ? "先清掉巩固队列，再回到今天的新内容。" : "巩固队列已清空，可以回到 TOEFL 今日阶段。")
-    : `Day ${state.toeflDay} · ${toeflStages[state.toeflStage]}：达到 ${PASS_SCORE}% 后进入下一阶段。`;
-  els.stageBridgeText.textContent = nextText;
+  const due = reviewDue().length;
+  els.stageBridgeText.textContent = due ? `${due} 项等待复习` : "今日没有到期复习";
 }
 
 function calculateStreak() {
-  let streak = 0;
-  const date = new Date();
-  while (streak < 90) {
-    const key = date.toISOString().slice(0, 10);
-    if (!state.stats.minutesByDate[key]) break;
-    streak += 1;
-    date.setDate(date.getDate() - 1);
-  }
-  return streak;
+  return streakDays(state.stats.learning.daily);
+}
+
+function cancelPlayback() {
+  state.playbackRun += 1;
+  window.speechSynthesis?.cancel();
 }
 
 function speak(text, language, options = {}) {
@@ -1055,11 +1247,13 @@ function speak(text, language, options = {}) {
     return;
   }
 
-  window.speechSynthesis.cancel();
+  cancelPlayback();
+  const run = state.playbackRun;
   const repeat = Math.max(1, options.repeat || 1);
   const baseRate = language === "cantonese" ? 0.82 : 0.88;
   const rate = options.slow ? baseRate * 0.72 : baseRate;
   const speakOnce = (count) => {
+    if (run !== state.playbackRun || !state.currentUser) return;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = language === "cantonese" ? "yue-HK" : "en-US";
     utterance.rate = rate;
@@ -1083,6 +1277,7 @@ function startDictation() {
     return;
   }
   const lesson = currentLesson();
+  if (!lesson) return;
   els.dictationBox.hidden = false;
   els.dictationInput.value = "";
   els.dictationInput.focus();
@@ -1092,6 +1287,7 @@ function startDictation() {
 
 function checkDictation() {
   const lesson = currentLesson();
+  if (!lesson || state.phase !== "listen") return;
   const typed = els.dictationInput.value.trim();
   if (!typed) {
     showToast("先写下你听到的内容，再检查。");
@@ -1102,6 +1298,7 @@ function checkDictation() {
     return;
   }
   const score = scoreTranscript(typed, lesson);
+  document.querySelector(".feedback-panel").hidden = false;
   els.transcript.textContent = `听写：${typed}`;
   els.scoreValue.textContent = `${score}%`;
   state.stats.bestScores = state.stats.bestScores || {};
@@ -1113,13 +1310,10 @@ function checkDictation() {
     time: Date.now(),
   });
   state.stats.history = state.stats.history.slice(0, 12);
-  addPracticeMinute(1);
-  if (score >= PASS_SCORE) {
-    clearReviewItem(lesson.id);
-    markLessonPassed(lesson);
+  if (passListening(state.stats.learning, lesson.id, score)) {
     saveStats();
     renderStats();
-    showContinueGate("听写达到 95%。点击继续，进入下一关。");
+    showContinueGate("听辨通过。点击继续，开口说这句话。");
   } else {
     queueForReview(lesson, score);
     saveStats();
@@ -1130,6 +1324,8 @@ function checkDictation() {
 
 function startRecognition() {
   const lesson = currentLesson();
+  if (!lesson || state.phase !== "speak") return;
+  document.querySelector(".feedback-panel").hidden = false;
   if (state.awaitingContinue) {
     showToast("本关已经过关，点击“继续”进入下一关。");
     return;
@@ -1140,17 +1336,21 @@ function startRecognition() {
   }
 
   if (state.recognizing) {
-    state.recognitionManualStop = true;
-    clearRecognitionTimer();
-    state.recognition.stop();
+    stopRecognition();
+    setRecordButtonText("继续跟读");
+    els.transcript.textContent = "已暂停，再按一次继续跟读。";
     return;
   }
 
-  state.recognition = new SpeechRecognition();
-  state.recognition.lang = lesson.language === "cantonese" ? "yue-HK" : "en-US";
-  state.recognition.interimResults = false;
-  state.recognition.maxAlternatives = 1;
-  state.recognition.continuous = false;
+  cancelPlayback();
+  const recognition = new SpeechRecognition();
+  state.recognition = recognition;
+  const run = ++state.speechRun;
+  const isCurrent = () => run === state.speechRun && state.currentUser && currentLesson()?.id === lesson.id;
+  recognition.lang = lesson.language === "cantonese" ? "yue-HK" : "en-US";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  recognition.continuous = false;
   state.recognizing = true;
   state.recognitionHadResult = false;
   state.recognitionTimedOut = false;
@@ -1160,68 +1360,61 @@ function startRecognition() {
   els.transcript.textContent = `请在 ${Math.round(SPEECH_TIMEOUT_MS / 1000)} 秒内说出屏幕上的句子。`;
   drawWave(lesson.line.length, true);
   state.recognitionTimer = window.setTimeout(() => {
-    if (!state.recognizing || state.recognitionHadResult) return;
-    state.recognitionTimedOut = true;
+    if (!isCurrent() || !state.recognizing) return;
+    stopRecognition();
+    setRecordButtonText("继续跟读");
     els.transcript.textContent = `这次没有识别到语音，已暂停。再按“继续跟读”重新开始。`;
     showToast("没有识别到，已暂停。");
-    try {
-      state.recognition.abort();
-    } catch {
-      state.recognition.stop();
-    }
+    drawWave(lesson.line.length);
   }, SPEECH_TIMEOUT_MS);
 
-  state.recognition.onresult = (event) => {
-    state.recognitionHadResult = true;
-    clearRecognitionTimer();
-    const transcript = event.results[0][0].transcript;
+  recognition.onresult = (event) => {
+    if (!isCurrent()) return;
+    const transcript = event.results?.[0]?.[0]?.transcript;
+    stopRecognition();
+    if (!transcript) return;
     evaluateSpeech(transcript, lesson);
   };
 
-  state.recognition.onerror = (event) => {
-    clearRecognitionTimer();
-    if (state.recognitionTimedOut || event.error === "aborted") return;
-    state.recognitionTimedOut = event.error === "no-speech";
-    els.transcript.textContent = "没有听清楚，已暂停。再按“继续跟读”重新开始。";
-    showToast("没有听清楚，已暂停。");
+  recognition.onerror = (event) => {
+    if (!isCurrent()) return;
+    stopRecognition();
+    setRecordButtonText("继续跟读");
+    els.transcript.textContent = event.error === "not-allowed" ? "麦克风未获授权，请在浏览器设置中允许麦克风后重试。" : "没有听清楚，已暂停。再按“继续跟读”重新开始。";
   };
 
-  state.recognition.onend = () => {
-    clearRecognitionTimer();
-    state.recognizing = false;
-    els.recordButton.classList.remove("is-recording");
-    setRecordButtonText((state.recognitionTimedOut || state.recognitionManualStop) ? "继续跟读" : "开始跟读");
-    if (state.recognitionManualStop && !state.recognitionHadResult) {
-      els.transcript.textContent = "已暂停。再按“继续跟读”重新开始。";
-    }
+  recognition.onend = () => {
+    if (!isCurrent()) return;
+    stopRecognition();
+    setRecordButtonText("继续跟读");
+    els.transcript.textContent = "识别已暂停，再按一次继续跟读。";
     drawWave(lesson.line.length);
   };
 
   try {
-    state.recognition.start();
+    recognition.start();
   } catch {
-    clearRecognitionTimer();
-    state.recognizing = false;
-    els.recordButton.classList.remove("is-recording");
+    stopRecognition();
     setRecordButtonText("继续跟读");
     els.transcript.textContent = "语音识别没有启动成功，再按一次试试。";
   }
 }
 
 function recordFallback(lesson) {
-  const typed = window.prompt("这个浏览器暂时不能语音识别。你可以输入自己刚才说的内容来做匹配：", "");
-  if (typed) evaluateSpeech(typed, lesson);
+  els.transcript.textContent = "此浏览器暂不支持语音识别。可以暂存巩固，换支持语音识别的浏览器后继续。";
+  showToast("语音识别暂不可用，学习进度已保留。");
 }
 
 function evaluateSpeech(transcript, lesson) {
+  if (!state.currentUser || currentLesson()?.id !== lesson.id || state.phase !== "speak") return;
   if (state.awaitingContinue) {
     showToast("本关已经过关，点击“继续”进入下一关。");
     return;
   }
   const score = scoreTranscript(transcript, lesson);
+  document.querySelector(".feedback-panel").hidden = false;
   els.transcript.textContent = transcript;
   els.scoreValue.textContent = `${score}%`;
-  addPracticeMinute(1);
   state.stats.attempts += 1;
   state.stats.bestScores = state.stats.bestScores || {};
   state.stats.bestScores[lesson.id] = Math.max(state.stats.bestScores[lesson.id] || 0, score);
@@ -1230,7 +1423,7 @@ function evaluateSpeech(transcript, lesson) {
     time: Date.now(),
   });
   state.stats.history = state.stats.history.slice(0, 12);
-  if (score >= PASS_SCORE) {
+  if (passSpeaking(state.stats.learning, lesson.id, score)) {
     clearReviewItem(lesson.id);
     markLessonPassed(lesson);
   } else {
@@ -1239,7 +1432,7 @@ function evaluateSpeech(transcript, lesson) {
   saveStats();
   renderStats();
   if (score >= PASS_SCORE) {
-    showContinueGate(`${score}% 过关。点击继续，进入下一关。`);
+    showContinueGate(`${score}% 过关。下次复习：${state.stats.learning.records[lesson.id].due}`);
   } else {
     renderCurriculum();
   }
@@ -1296,6 +1489,7 @@ function levenshtein(a, b) {
 }
 
 function queueForReview(lesson, score) {
+  deferLesson(state.stats.learning, lesson.id);
   state.stats.reviewQueue = state.stats.reviewQueue || [];
   const existing = state.stats.reviewQueue.find((item) => item.id === lesson.id);
   if (existing) {
@@ -1328,10 +1522,7 @@ function markLessonPassed(lesson) {
     state.stats.mastered.push(lesson.id);
   }
 
-  if (lesson.source !== "toefl") {
-    state.lineIndex += 1;
-    return;
-  }
+  if (lesson.source !== "toefl") return;
 
   state.stats.stageProgress = state.stats.stageProgress || { day: 1, stage: 0, completed: {} };
   state.stats.stageProgress.completed[lesson.id] = {
@@ -1339,22 +1530,12 @@ function markLessonPassed(lesson) {
     bestScore: state.stats.bestScores?.[lesson.id] || PASS_SCORE,
   };
 
-  if (lesson.stage < toeflStages.length - 1) {
-    state.toeflStage = lesson.stage + 1;
-  } else {
-    state.toeflDay = Math.min(toeflPlan.length, lesson.day + 1);
-    state.toeflStage = 0;
-  }
-
-  state.stats.stageProgress.day = state.toeflDay;
-  state.stats.stageProgress.stage = state.toeflStage;
-  state.studyMode = "toefl";
 }
 
 function markMastered() {
   const lesson = currentLesson();
+  if (!lesson || state.awaitingContinue) return;
   queueForReview(lesson, state.stats.bestScores?.[lesson.id] || 0);
-  addPracticeMinute(1);
   state.stats.history.unshift({
     text: `暂存巩固：${lesson.line}`,
     time: Date.now(),
@@ -1364,11 +1545,7 @@ function markMastered() {
   renderStats();
   renderPhrases();
   showToast("已加入巩固队列，下次统一处理。");
-}
-
-function addPracticeMinute(minutes) {
-  const key = todayKey();
-  state.stats.minutesByDate[key] = (state.stats.minutesByDate[key] || 0) + minutes;
+  advanceLesson();
 }
 
 function drawWave(seed = 12, active = false) {
@@ -1403,9 +1580,6 @@ function drawWave(seed = 12, active = false) {
     ctx.fill();
   }
 
-  ctx.fillStyle = "rgba(23, 50, 52, 0.55)";
-  ctx.font = "700 15px Inter, sans-serif";
-  ctx.fillText(active ? "正在练习节奏" : "听一句，再跟一句", 18, height - 18);
 }
 
 function roundRect(ctx, x, y, width, height, radius) {
@@ -1463,55 +1637,49 @@ function bindEvents() {
 
   [els.languageSelect, els.scenarioSelect, els.levelSelect].forEach((control) => {
     control.addEventListener("change", () => {
-      state.lineIndex = 0;
-      renderLesson();
+      state.studyMode = "scene";
+      beginCourse();
     });
   });
 
   els.studyModeSelect.addEventListener("change", () => {
     state.studyMode = els.studyModeSelect.value;
-    state.lineIndex = 0;
-    renderLesson();
+    if (state.studyMode === "review") beginReview();
+    else beginCourse();
   });
 
   els.toeflDaySelect.addEventListener("change", () => {
     state.toeflDay = Number(els.toeflDaySelect.value);
-    state.studyMode = "toefl";
-    syncStageProgress();
-    renderLesson();
+    renderCurriculum();
   });
 
   els.toeflStageSelect.addEventListener("change", () => {
     state.toeflStage = Number(els.toeflStageSelect.value);
-    state.studyMode = "toefl";
-    syncStageProgress();
-    renderLesson();
+    renderCurriculum();
   });
 
-  els.startReviewButton.addEventListener("click", () => {
-    state.studyMode = "review";
-    renderLesson();
-    showQuestView("practice");
-  });
+  els.startReviewButton.addEventListener("click", beginReview);
 
   els.nextLineButton.addEventListener("click", () => {
-    state.lineIndex += 1;
-    renderLesson();
+    markMastered();
   });
 
   els.listenButton.addEventListener("click", () => {
     const lesson = currentLesson();
+    if (!lesson) return;
     speak(lesson.line, lesson.language);
   });
 
   els.slowListenButton.addEventListener("click", () => {
     const lesson = currentLesson();
+    if (!lesson) return;
     els.listeningHint.textContent = "慢速听一遍，注意重音、停顿和结尾音。";
     speak(lesson.line, lesson.language, { slow: true });
   });
 
   els.loopListenButton.addEventListener("click", () => {
     const lesson = currentLesson();
+    if (!lesson) return;
     els.listeningHint.textContent = "循环 3 遍：第一遍听意思，第二遍听关键词，第三遍准备跟读。";
     speak(lesson.line, lesson.language, { slow: true, repeat: 3 });
   });
@@ -1519,6 +1687,68 @@ function bindEvents() {
   els.dictationButton.addEventListener("click", startDictation);
   els.checkDictationButton.addEventListener("click", checkDictation);
   els.continueButton.addEventListener("click", continueToNextLevel);
+  document.querySelector("#learnContinueButton").addEventListener("click", () => {
+    const lesson = currentLesson();
+    if (!lesson || state.phase !== "learn") return;
+    recordFor(state.stats.learning, lesson.id).learn = true;
+    state.phase = "listen";
+    renderLesson();
+  });
+  document.querySelector("#vocabularyItems").addEventListener("click", event => {
+    const lesson = currentLesson();
+    if (!lesson) return;
+    const word = event.target.closest("[data-vocab]");
+    if (word) {
+      const expanded = word.getAttribute("aria-expanded") !== "true";
+      word.setAttribute("aria-expanded", String(expanded));
+      const gloss = word.querySelector("span");
+      gloss.textContent = expanded ? gloss.dataset.gloss : "中文释义";
+    }
+    const audio = event.target.closest("[data-word-audio]");
+    if (audio) speak(vocabularyFor(lesson)[Number(audio.dataset.wordAudio)][0], lesson.language);
+  });
+  document.querySelector("#revealAnswerButton").addEventListener("click", () => {
+    const phrase = document.querySelector("#phraseStage");
+    phrase.hidden = !phrase.hidden;
+    document.querySelector("#revealAnswerButton").textContent = phrase.hidden ? "查看原句" : "收起原句";
+  });
+  document.querySelector("#learningPath").addEventListener("click", event => {
+    const button = event.target.closest("[data-path]");
+    if (!button || button.disabled) return;
+    selectLesson(findLesson(button.dataset.path));
+  });
+  document.querySelector("#beginReviewButton").addEventListener("click", beginReview);
+  document.querySelector("#sessionReviewButton").addEventListener("click", () => showQuestView("review"));
+  document.querySelector("#restartCourseButton").addEventListener("click", () => selectLesson(courseLessons()[0]));
+  document.querySelector("#reviewList").addEventListener("click", event => {
+    const button = event.target.closest("[data-review-id]");
+    if (!button) return;
+    state.studyMode = "review";
+    state.reviewIds = [button.dataset.reviewId];
+    selectLesson(findLesson(button.dataset.reviewId));
+    showQuestView("practice");
+  });
+  document.querySelectorAll("[data-review-filter]").forEach(button => button.addEventListener("click", () => {
+    state.reviewFilter = button.dataset.reviewFilter;
+    document.querySelectorAll("[data-review-filter]").forEach(item => item.classList.toggle("active", item === button));
+    renderReview();
+  }));
+  document.querySelector("#dailyGoalSelect").addEventListener("change", event => {
+    state.stats.learning.goal = Number(event.target.value);
+    saveStats();
+    renderStats();
+  });
+  document.querySelector("#startToeflButton").addEventListener("click", () => {
+    state.studyMode = "toefl";
+    selectLesson(buildToeflLesson(state.toeflDay, state.toeflStage));
+    showQuestView("practice");
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      stopRecognition();
+      cancelPlayback();
+    }
+  });
 
   [els.targetLine, els.romanization, els.writtenExpression].forEach((element) => {
     bindRevealTrigger(element, toggleMeaning);
@@ -1575,16 +1805,15 @@ function bindEvents() {
       state.studyMode = "toefl";
       state.toeflDay = lesson.day;
       state.toeflStage = lesson.stage;
-      syncStageProgress();
-      renderLesson();
+      selectLesson(lesson);
       showQuestView("practice");
       return;
     }
     els.languageSelect.value = lesson.language;
+    state.studyMode = "scene";
     els.levelSelect.value = lesson.level;
     els.scenarioSelect.value = lesson.scenario;
-    state.lineIndex = activeLessons().findIndex((item) => item.id === lesson.id);
-    renderLesson();
+    selectLesson(lesson);
     showQuestView("practice");
   });
 
@@ -1660,7 +1889,20 @@ function initProduct() {
     bindEvents();
     state.productReady = true;
   }
-  renderLesson();
+  const cursor = state.stats.learning.cursor;
+  state.currentView = "practice";
+  state.studyMode = ["scene", "toefl", "review"].includes(cursor?.mode) ? cursor.mode : "scene";
+  els.languageSelect.value = cursor?.language || "english";
+  els.levelSelect.value = cursor?.level || "starter";
+  els.scenarioSelect.value = cursor?.scenario || "all";
+  state.reviewIds = (cursor?.reviewIds || []).filter(findLesson);
+  state.lessonId = cursor?.lessonId || null;
+  state.sessionDone = Boolean(cursor?.done);
+  state.phase = PHASES.includes(cursor?.phase) ? cursor.phase : "learn";
+  state.awaitingContinue = Boolean(cursor?.gate && state.stats.learning.records[state.lessonId]?.[state.phase]);
+  if (cursor && (state.sessionDone || currentLesson())) renderLesson();
+  else beginCourse();
+  document.querySelector(".path-details").open = !window.matchMedia("(max-width: 720px)").matches;
   renderDialogue();
   renderPhrases();
   renderStats();
@@ -1668,6 +1910,7 @@ function initProduct() {
 }
 
 function init() {
+  icons();
   updateAuthMethodUi();
   setAuthMode("login");
   bindAuthEvents();
