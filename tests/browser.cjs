@@ -135,6 +135,84 @@ const statsKey = `speaklift.stats.${key}`;
     const before = await page.evaluate(k => JSON.parse(localStorage.getItem(k)).attempts, statsKey);
     await page.evaluate(() => window.staleCallback({ results: [[{ transcript: 'My name is Yi. I am learning English.' }]] }));
     assert.equal(await page.evaluate(k => JSON.parse(localStorage.getItem(k)).attempts, statsKey), before);
+    // Library practice is a single-lesson detour, preserving the course and draft across reloads.
+    await page.evaluate(k => {
+      const stats = JSON.parse(localStorage.getItem(k));
+      stats.learning.records['intro-en'] = { learn: true, listen: false, speak: false };
+      stats.learning.cursor = { mode: 'scene', language: 'english', level: 'starter', scenario: 'all', lessonId: 'intro-en', phase: 'listen', draft: 'My name is' };
+      localStorage.setItem(k, JSON.stringify(stats));
+    }, statsKey);
+    await page.reload();
+    assert.equal(await page.locator('#dictationInput').inputValue(), 'My name is');
+    await page.locator('#dictationInput').fill('My name is Yi.');
+    await page.reload();
+    assert.equal(await page.locator('#dictationInput').inputValue(), 'My name is Yi.');
+    const originalCursor = await page.evaluate(k => JSON.parse(localStorage.getItem(k)).learning.cursor, statsKey);
+    await page.locator('.topnav [data-view="phrases"]').click();
+    assert.equal(await page.locator('.phrase-card').count(), 0);
+    await page.locator('#phraseSearch').fill('latte');
+    await page.locator('[data-practice="coffee-en"]').click();
+    assert.equal(await page.locator('#libraryPracticeBar').isVisible(), true);
+    assert.equal(await page.locator('.coach-panel').isVisible(), false);
+    assert.equal(await page.locator('#lineTitle').textContent(), '点咖啡');
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.screenshot({ path: 'test-results/desktop-library-practice.png', fullPage: true });
+    await page.locator('#learnContinueButton').click();
+    await page.locator('#dictationInput').fill('Could I have');
+    await page.reload();
+    assert.equal(await page.locator('#dictationInput').inputValue(), 'Could I have');
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.screenshot({ path: `test-results/mobile-${width}-library-practice.png`, fullPage: true });
+    }
+    await page.locator('#returnToCourseButton').click();
+    assert.equal(await page.locator('#lineTitle').textContent(), '自我介绍');
+    assert.equal(await page.locator('#dictationInput').inputValue(), 'My name is Yi.');
+    assert.equal(await page.locator('#libraryPracticeBar').isVisible(), false);
+    assert.deepEqual(await page.evaluate(k => JSON.parse(localStorage.getItem(k)).learning.cursor, statsKey), originalCursor);
+    await page.locator('.topnav [data-view="phrases"]').click();
+    await page.locator('#phraseSearch').fill('latte');
+    await page.locator('[data-practice="coffee-en"]').click();
+    // Choosing another library item must not replace the original bookmark.
+    await page.locator('.topnav [data-view="phrases"]').click();
+    assert.equal(await page.locator('.phrase-card').count(), 0);
+    await page.locator('#phraseSearch').fill('weather');
+    await page.locator('[data-practice="weather-en"]').click();
+    await page.locator('#nextLineButton').click();
+    assert.equal(await page.locator('#lineTitle').textContent(), '自我介绍');
+    assert.equal(await page.locator('#dictationInput').inputValue(), 'My name is Yi.');
+    await page.locator('.topnav [data-view="phrases"]').click();
+    await page.locator('#phraseSearch').fill('latte');
+    await page.locator('[data-practice="coffee-en"]').click();
+    await page.locator('#dictationInput').fill('Could I have a hot latte, please?');
+    await page.locator('#checkDictationButton').click();
+    await page.locator('#continueButton').click();
+    await page.locator('#recordButton').click();
+    await page.evaluate(() => window.testRecognition.onresult({ results: [[{ transcript: 'Could I have a hot latte, please?' }]] }));
+    assert.equal(await page.locator('#continueText').textContent(), '本句已过，继续原来的课程。');
+    await page.reload();
+    await page.locator('#continueButton').click();
+    assert.equal(await page.locator('#lineTitle').textContent(), '自我介绍');
+    assert.equal(await page.locator('#dictationInput').inputValue(), 'My name is Yi.');
+    assert.equal(await page.evaluate(k => JSON.parse(localStorage.getItem(k)).learning.records['coffee-en'].speak, statsKey), true);
+    // A paused Continue gate in a review queue also survives a TOEFL library detour.
+    await page.evaluate(k => {
+      const stats = JSON.parse(localStorage.getItem(k));
+      stats.learning.cursor = { mode: 'review', reviewIds: ['hello-en', 'intro-en'], lessonId: 'hello-en', phase: 'speak', gate: true };
+      localStorage.setItem(k, JSON.stringify(stats));
+    }, statsKey);
+    await page.reload();
+    await page.locator('.topnav [data-view="phrases"]').click();
+    await page.locator('#phraseSearch').fill('analysis');
+    await page.locator('[data-practice^="toefl-"]').first().click();
+    assert.equal(await page.locator('#libraryPracticeBar').isVisible(), true);
+    await page.reload();
+    await page.locator('#returnToCourseButton').click();
+    assert.equal(await page.locator('#lineTitle').textContent(), '打招呼');
+    assert.equal(await page.locator('#continuePanel').isVisible(), true);
+    await page.locator('#continueButton').click();
+    assert.equal(await page.locator('#lineTitle').textContent(), '自我介绍');
     // The final TOEFL stage ends the course instead of cycling to day 21 stage 1.
     await page.evaluate(k => {
       const stats = JSON.parse(localStorage.getItem(k));
@@ -146,7 +224,7 @@ const statsKey = `speaklift.stats.${key}`;
     await page.locator('#continueButton').click();
     assert.equal(await page.locator('#sessionComplete').isVisible(), true);
     assert.deepEqual(errors, []);
-    console.log('PASS: vocabulary, hidden meanings, listen/speak separation, refresh gates, 6-second timeout, Continue, review queue, empty state, 1440/390/320 layouts. Speech engine mocked; no real microphone verified.');
+    console.log('PASS: vocabulary, hidden meanings, listen/speak separation, refresh gates, 6-second timeout, Continue, review queue, empty state, library return/drafts/refresh, 1440/390/320 layouts. Speech engine mocked; no real microphone verified.');
     await context.close();
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

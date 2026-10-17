@@ -1,9 +1,9 @@
-const CACHE_NAME = "speaklift-v9";
+const CACHE_NAME = "speaklift-v10";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=9",
-  "./app.js?v=9",
+  "./styles.css?v=10",
+  "./app.js?v=10",
   "./learning.mjs?v=8",
   "./icons.js?v=8",
   "./favicon.svg",
