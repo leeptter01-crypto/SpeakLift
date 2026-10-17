@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#1f7a72" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=10" />
+    <link rel="stylesheet" href="./styles.css?v=11" />
   </head>
   <body class="auth-locked">
     <section class="auth-screen" id="authScreen" aria-labelledby="authTitle">
@@ -201,7 +201,7 @@
                 <i data-lucide="volume-2"></i>
                 听朗读
               </button>
-              <button class="primary-action record" id="recordButton" type="button">
+              <button class="primary-action record" id="recordButton" type="button" aria-pressed="false">
                 <i data-lucide="mic"></i>
                 <span id="recordButtonLabel">开始跟读</span>
               </button>
@@ -366,6 +366,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="./icons.js?v=8"></script>
-    <script src="./app.js?v=10" type="module"></script>
+    <script src="./app.js?v=11" type="module"></script>
   </body>
 </html>
