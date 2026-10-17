@@ -15,6 +15,7 @@ const statsKey = `speaklift.stats.${key}`;
       sessionStorage.setItem('speaklift.sessionUser', key);
       window.SpeechRecognition = class {
         start() { window.testRecognition = this; }
+        stop() { this.onend?.(); }
         abort() {} // Intentionally omit onend to reproduce stalled engines.
       };
       window.speechSynthesis.speak = () => {};
@@ -46,7 +47,7 @@ const statsKey = `speaklift.stats.${key}`;
     assert.equal(await page.locator('#lineTitle').textContent(), '打招呼');
     await page.locator('#continueButton').click();
     await page.locator('#recordButton').click();
-    await page.waitForFunction(() => document.querySelector('#recordButtonLabel').textContent === '继续跟读', { timeout: 8000 });
+    await page.waitForFunction(() => document.querySelector('#recordButtonLabel').textContent === '重新跟读', { timeout: 14000 });
     assert.equal(await page.locator('#recordButton').isDisabled(), false);
     await page.locator('#recordButton').click();
     await page.evaluate(() => window.testRecognition.onresult({ results: [[{ transcript: 'Hello, nice to meet you.' }]] }));
@@ -190,6 +191,7 @@ const statsKey = `speaklift.stats.${key}`;
     await page.locator('#continueButton').click();
     await page.locator('#recordButton').click();
     await page.evaluate(() => window.testRecognition.onresult({ results: [[{ transcript: 'Could I have a hot latte, please?' }]] }));
+    await page.locator('#continuePanel').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#continueText').textContent(), '本句已过，继续原来的课程。');
     await page.reload();
     await page.locator('#continueButton').click();
@@ -224,7 +226,7 @@ const statsKey = `speaklift.stats.${key}`;
     await page.locator('#continueButton').click();
     assert.equal(await page.locator('#sessionComplete').isVisible(), true);
     assert.deepEqual(errors, []);
-    console.log('PASS: vocabulary, hidden meanings, listen/speak separation, refresh gates, 6-second timeout, Continue, review queue, empty state, library return/drafts/refresh, 1440/390/320 layouts. Speech engine mocked; no real microphone verified.');
+    console.log('PASS: vocabulary, hidden meanings, listen/speak separation, refresh gates, 12-second no-speech timeout, automatic speech scoring, Continue, review queue, empty state, library return/drafts/refresh, 1440/390/320 layouts. Speech engine mocked; no real microphone verified.');
     await context.close();
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

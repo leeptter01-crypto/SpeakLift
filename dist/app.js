@@ -1,4 +1,5 @@
 import { PHASES, dateKey, daysAfter, normalizeLearning, recordFor, nextPhase, passListening, passSpeaking, deferLesson, dueIds, isUnlocked, streakDays } from "./learning.mjs?v=8";
+import { createSpeechSession } from "./speech.mjs?v=11";
 
 const lessons = [
   {
@@ -259,7 +260,6 @@ const dialogues = [
 ];
 
 const PASS_SCORE = 95;
-const SPEECH_TIMEOUT_MS = 6000;
 const QUESTS = [
   { id: "practice", title: "开口练习" },
   { id: "review", title: "复习" },
@@ -346,11 +346,7 @@ const state = {
   studyMode: "scene",
   toeflDay: 1,
   toeflStage: 0,
-  recognition: null,
-  recognitionTimer: null,
-  recognitionHadResult: false,
-  recognitionTimedOut: false,
-  recognitionManualStop: false,
+  speechSession: null,
   recognizing: false,
   awaitingContinue: false,
   lessonId: null,
@@ -359,7 +355,6 @@ const state = {
   reviewIds: [],
   reviewFilter: "due",
   sessionDone: false,
-  speechRun: 0,
   playbackRun: 0,
   currentUser: null,
   authMode: "login",
@@ -1025,23 +1020,16 @@ function setRecordButtonText(text) {
   els.recordButtonLabel.textContent = text;
 }
 
-function clearRecognitionTimer() {
-  window.clearTimeout(state.recognitionTimer);
-  state.recognitionTimer = null;
-}
-
 function stopRecognition() {
-  state.speechRun += 1;
-  clearRecognitionTimer();
-  const recognition = state.recognition;
-  state.recognition = null;
+  state.speechSession?.cancel();
+  state.speechSession = null;
   state.recognizing = false;
   els.recordButton.classList.remove("is-recording");
+  els.recordButton.setAttribute("aria-pressed", "false");
+  els.recordButton.disabled = state.awaitingContinue;
+  [els.listenButton, els.slowListenButton, els.loopListenButton].forEach(button => { button.disabled = state.awaitingContinue; });
   setRecordButtonText("开始跟读");
-  if (recognition) {
-    recognition.onresult = recognition.onerror = recognition.onend = null;
-    try { recognition.abort(); } catch { /* The browser may have already stopped. */ }
-  }
+  els.listeningHint.textContent = state.phase === "listen" ? "听写匹配达到 95%，再进入跟读。" : "准备就绪";
 }
 
 function setPracticeControlsPaused(paused) {
@@ -1130,7 +1118,7 @@ function renderLesson({ draft = "" } = {}) {
   els.continuePanel.hidden = !state.awaitingContinue;
   setPracticeControlsPaused(state.awaitingContinue);
   setRecordButtonText("开始跟读");
-  els.listeningHint.textContent = phase === "listen" ? "听写匹配达到 95%，再进入跟读。" : "每次识别 6 秒，可随时重新开始。";
+  els.listeningHint.textContent = phase === "listen" ? "听写匹配达到 95%，再进入跟读。" : "准备就绪";
   document.querySelector("#vocabularyStage").hidden = phase !== "learn";
   document.querySelector("#listeningPrompt").hidden = phase !== "listen";
   document.querySelector("#phraseStage").hidden = phase !== "speak";
@@ -1410,68 +1398,62 @@ function startRecognition() {
   }
 
   if (state.recognizing) {
-    stopRecognition();
-    setRecordButtonText("继续跟读");
-    els.transcript.textContent = "已暂停，再按一次继续跟读。";
+    state.speechSession?.finish();
     return;
   }
 
   cancelPlayback();
-  const recognition = new SpeechRecognition();
-  state.recognition = recognition;
-  const run = ++state.speechRun;
-  const isCurrent = () => run === state.speechRun && state.currentUser && currentLesson()?.id === lesson.id;
-  recognition.lang = lesson.language === "cantonese" ? "yue-HK" : "en-US";
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-  recognition.continuous = false;
+  const user = state.currentUser;
+  const isCurrent = () => state.speechSession === session && state.currentUser === user && currentLesson()?.id === lesson.id;
+  const session = createSpeechSession(SpeechRecognition, {
+    language: lesson.language === "cantonese" ? "yue-HK" : "en-US",
+    isComplete: text => normalize(text) === normalize(lesson.line),
+    onTranscript(text) {
+      if (isCurrent()) els.transcript.textContent = text || "正在收听…";
+    },
+    onTick(seconds) {
+      if (isCurrent()) els.listeningHint.textContent = `正在收听 · 剩余 ${seconds} 秒`;
+    },
+    onState(status) {
+      if (!isCurrent() || status !== "processing") return;
+      setRecordButtonText("正在判断…");
+      els.recordButton.setAttribute("aria-pressed", "false");
+      els.recordButton.disabled = true;
+      els.recordButton.classList.remove("is-recording");
+      els.listeningHint.textContent = "正在整理识别结果…";
+    },
+    onFinish({ transcript, error }) {
+      if (!isCurrent()) return;
+      stopRecognition();
+      drawWave(lesson.line.length);
+      setRecordButtonText("重新跟读");
+      if (!error && transcript) {
+        els.listeningHint.textContent = "本次收听已结束";
+        evaluateSpeech(transcript, lesson);
+        return;
+      }
+      const messages = {
+        "not-allowed": "麦克风未获授权，请在浏览器设置中允许麦克风后重试。",
+        "service-not-allowed": "浏览器未允许语音识别服务，请检查权限后重试。",
+        "audio-capture": "未能使用麦克风，请检查设备是否被其他程序占用。",
+        network: "语音服务连接中断，本次未评分。请检查网络后重试。",
+        "language-not-supported": "当前语音服务不支持此语言，请换支持该语言的浏览器。",
+        "start-failed": "语音识别未能启动，请重试。",
+      };
+      els.transcript.textContent = error ? (messages[error] || "语音识别已中断，本次未评分。") : "没有识别到语音，已暂停。本次未计入成绩。";
+      els.listeningHint.textContent = "收听已暂停";
+    },
+  });
+  state.speechSession = session;
   state.recognizing = true;
-  state.recognitionHadResult = false;
-  state.recognitionTimedOut = false;
-  state.recognitionManualStop = false;
   els.recordButton.classList.add("is-recording");
-  setRecordButtonText("正在听...");
-  els.transcript.textContent = `请在 ${Math.round(SPEECH_TIMEOUT_MS / 1000)} 秒内说出屏幕上的句子。`;
+  els.recordButton.setAttribute("aria-pressed", "true");
+  [els.listenButton, els.slowListenButton, els.loopListenButton].forEach(button => { button.disabled = true; });
+  setRecordButtonText("结束并判断");
+  els.transcript.textContent = "正在收听…";
+  els.scoreValue.textContent = "--";
   drawWave(lesson.line.length, true);
-  state.recognitionTimer = window.setTimeout(() => {
-    if (!isCurrent() || !state.recognizing) return;
-    stopRecognition();
-    setRecordButtonText("继续跟读");
-    els.transcript.textContent = `这次没有识别到语音，已暂停。再按“继续跟读”重新开始。`;
-    showToast("没有识别到，已暂停。");
-    drawWave(lesson.line.length);
-  }, SPEECH_TIMEOUT_MS);
-
-  recognition.onresult = (event) => {
-    if (!isCurrent()) return;
-    const transcript = event.results?.[0]?.[0]?.transcript;
-    stopRecognition();
-    if (!transcript) return;
-    evaluateSpeech(transcript, lesson);
-  };
-
-  recognition.onerror = (event) => {
-    if (!isCurrent()) return;
-    stopRecognition();
-    setRecordButtonText("继续跟读");
-    els.transcript.textContent = event.error === "not-allowed" ? "麦克风未获授权，请在浏览器设置中允许麦克风后重试。" : "没有听清楚，已暂停。再按“继续跟读”重新开始。";
-  };
-
-  recognition.onend = () => {
-    if (!isCurrent()) return;
-    stopRecognition();
-    setRecordButtonText("继续跟读");
-    els.transcript.textContent = "识别已暂停，再按一次继续跟读。";
-    drawWave(lesson.line.length);
-  };
-
-  try {
-    recognition.start();
-  } catch {
-    stopRecognition();
-    setRecordButtonText("继续跟读");
-    els.transcript.textContent = "语音识别没有启动成功，再按一次试试。";
-  }
+  session.start();
 }
 
 function recordFallback(lesson) {

@@ -18,7 +18,7 @@ SpeakLift is a bilingual speaking-practice app for English and Cantonese beginne
 - Email, phone, and Google account identifiers
 - Local 6-digit verification code check during registration
 - Three-step lesson flow: vocabulary, listening dictation, then speaking; explicit Continue after each scored step
-- Speech recognition pauses after a short no-speech timeout, so the learner can tap again to continue
+- One-click continuous speech recognition: stop on a confirmed complete sentence, after a 2.5-second pause, at a 30-second capture limit, or when the learner taps Finish; pause after 12 seconds with no speech
 - Focused desktop lesson workspace and compact mobile steps, with a separate learning path and review screen
 - Listen-and-repeat practice with browser speech synthesis
 - Slow listening, 3-repeat loop listening, and dictation-assisted listening practice
@@ -45,14 +45,23 @@ Daily goals are 3, 5, or 8 distinct passed sentences. Repeating the same sentenc
 ## Checks
 
 ```text
-node --test tests/learning.test.mjs
+node --test tests/learning.test.mjs tests/speech.test.mjs
 node --check dist/app.js
 node tests/browser.cjs
+node tests/speech-browser.cjs
 ```
 
 The browser test requires Playwright and a local static server at `http://127.0.0.1:4186`; `SPEAKLIFT_TEST_URL` and `SPEAKLIFT_BROWSER` may override the URL and browser channel (default: msedge). It uses an isolated local test account and a mocked speech engine, including an engine that never emits `onend`. Screenshots are saved under ignored `test-results/`. Actual microphone capture and device-specific recognition still need a real-device check.
 
 See `docs/learning-layout-research.md` for reference findings and implementation choices. Lucide 0.468.0 is vendored in `dist/icons.js`; its license is retained alongside it.
+
+## Continuous Speech (v11)
+
+`dist/speech.mjs` manages one bounded listening attempt across browser recognition connections. It replaces interim hypotheses with each cumulative result snapshot instead of appending duplicate text. Brief engine disconnects reconnect within the original deadline; permission and network errors stop without a score. Navigating away, hiding the page, or logging out cancels capture and ignores delayed callbacks.
+
+Automatic or manual completion calls `stop()` to request the final transcript, then allows at most 1.5 seconds for final delivery before cleaning up. Native speech-start/end events keep a sentence open while speech is active; browsers without these events use transcript inactivity as a fallback. A score is submitted once per attempt, and passing still requires the explicit Continue action. Empty recognition does not count as a failed lesson. Sample audio buttons are disabled during microphone capture.
+
+The implementation follows the [Web Speech API specification](https://webaudio.github.io/web-speech-api/) for continuous/interim results and stop-versus-abort behavior. Recognition accuracy and event timing remain browser/provider dependent; the automated tests use a mock and do not verify physical microphone capture.
 
 ## TOEFL Content Note
 
