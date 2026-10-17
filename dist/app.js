@@ -354,6 +354,7 @@ const state = {
   recognizing: false,
   awaitingContinue: false,
   lessonId: null,
+  libraryReturn: null,
   phase: "learn",
   reviewIds: [],
   reviewFilter: "due",
@@ -793,6 +794,7 @@ function findLesson(id) {
 }
 
 function courseLessons() {
+  if (state.libraryReturn) return [findLesson(state.lessonId)].filter(Boolean);
   if (state.studyMode === "toefl") return toeflPlan.flatMap(day => [0, 1, 2].map(stage => buildToeflLesson(day.day, stage)));
   if (state.studyMode === "review") return state.reviewIds.map(findLesson).filter(Boolean);
   return activeLessons();
@@ -806,13 +808,53 @@ function icons() {
   window.lucide?.createIcons();
 }
 
-function persistCursor() {
-  state.stats.learning.cursor = {
+function captureCursor() {
+  return {
     mode: state.studyMode, language: els.languageSelect.value, level: els.levelSelect.value,
     scenario: els.scenarioSelect.value, lessonId: state.lessonId, phase: state.phase,
     gate: state.awaitingContinue, reviewIds: state.reviewIds, done: state.sessionDone,
+    draft: state.phase === "listen" ? els.dictationInput.value : "",
+    toeflDay: state.toeflDay, toeflStage: state.toeflStage,
   };
+}
+
+function persistCursor() {
+  state.stats.learning.cursor = { ...captureCursor(), libraryReturn: state.libraryReturn };
   saveStats();
+}
+
+function restoreCursor(cursor) {
+  state.studyMode = ["scene", "toefl", "review"].includes(cursor?.mode) ? cursor.mode : "scene";
+  els.languageSelect.value = cursor?.language || "english";
+  els.levelSelect.value = cursor?.level || "starter";
+  els.scenarioSelect.value = cursor?.scenario || "all";
+  state.toeflDay = cursor?.toeflDay || 1;
+  state.toeflStage = cursor?.toeflStage || 0;
+  state.reviewIds = (cursor?.reviewIds || []).filter(findLesson);
+  state.lessonId = cursor?.lessonId || null;
+  state.sessionDone = Boolean(cursor?.done);
+  state.phase = PHASES.includes(cursor?.phase) ? cursor.phase : "learn";
+  state.awaitingContinue = Boolean(cursor?.gate && state.stats.learning.records[state.lessonId]?.[state.phase]);
+  if (cursor && (state.sessionDone || currentLesson())) renderLesson({ draft: cursor.draft || "" });
+  else beginCourse();
+}
+
+function beginLibraryPractice(lesson) {
+  // Keep the original course bookmark even when another library sentence is chosen.
+  state.libraryReturn ||= captureCursor();
+  state.studyMode = lesson.source === "toefl" ? "toefl" : "scene";
+  selectLesson(lesson);
+  showQuestView("practice");
+}
+
+function returnToCourse() {
+  if (!state.libraryReturn) return;
+  const cursor = state.libraryReturn;
+  state.libraryReturn = null;
+  stopRecognition();
+  cancelPlayback();
+  restoreCursor(cursor);
+  showQuestView("practice");
 }
 
 function selectLesson(lesson) {
@@ -826,6 +868,7 @@ function selectLesson(lesson) {
 }
 
 function beginCourse() {
+  state.libraryReturn = null;
   state.sessionDone = false;
   const pool = courseLessons();
   selectLesson(pool.find(lesson => {
@@ -835,6 +878,7 @@ function beginCourse() {
 }
 
 function beginReview() {
+  state.libraryReturn = null;
   state.studyMode = "review";
   state.reviewIds = reviewDue();
   selectLesson(courseLessons()[0]);
@@ -842,6 +886,10 @@ function beginReview() {
 }
 
 function advanceLesson() {
+  if (state.libraryReturn) {
+    returnToCourse();
+    return;
+  }
   const pool = courseLessons();
   const index = pool.findIndex(lesson => lesson.id === state.lessonId);
   selectLesson(pool[index + 1] || null);
@@ -957,7 +1005,7 @@ function renderQuestHud() {
   const quest = QUESTS[questIndex] || QUESTS[0];
   const learning = state.stats.learning;
   const count = learning.daily[todayKey()]?.length || 0;
-  els.questName.textContent = state.currentView === "practice" ? (state.studyMode === "review" ? "复习，也是在前进" : "让开口，成为日常") : quest.title;
+  els.questName.textContent = state.currentView === "practice" ? (state.libraryReturn ? "句库练习" : state.studyMode === "review" ? "复习，也是在前进" : "让开口，成为日常") : quest.title;
   els.questProgressText.textContent = `今日完成 ${count} / ${learning.goal} 句`;
   els.questDots.innerHTML = Array.from({ length: learning.goal }, (_, index) => `<span class="${index < count ? "done" : ""}"></span>`)
     .join("");
@@ -1015,7 +1063,7 @@ function setPracticeControlsPaused(paused) {
 function showContinueGate(message) {
   state.awaitingContinue = true;
   setPracticeControlsPaused(true);
-  els.continueText.textContent = message;
+  els.continueText.textContent = state.libraryReturn && state.phase === "speak" ? "本句已过，继续原来的课程。" : message;
   els.continuePanel.hidden = false;
   els.dictationBox.hidden = true;
   document.querySelector(".action-row").hidden = true;
@@ -1043,8 +1091,11 @@ function continueToNextLevel() {
   }
 }
 
-function renderLesson() {
+function renderLesson({ draft = "" } = {}) {
   stopRecognition();
+  document.querySelector("#practice").classList.toggle("single-practice", Boolean(state.libraryReturn));
+  document.querySelector(".coach-panel").hidden = Boolean(state.libraryReturn);
+  document.querySelector("#libraryPracticeBar").hidden = !state.libraryReturn;
   const lesson = currentLesson();
   document.querySelector("#trainerCard").hidden = !lesson;
   document.querySelector("#sessionComplete").hidden = Boolean(lesson);
@@ -1065,7 +1116,7 @@ function renderLesson() {
   els.practiceTitle.textContent = state.studyMode === "review" ? "本轮复习" : "今天的学习";
   els.scenarioTag.textContent = lesson.source === "toefl"
     ? `TOEFL · Day ${lesson.day} · ${toeflStages[lesson.stage]}`
-    : `${lesson.language === "cantonese" ? "粤语" : "英语"} · 第 ${levelNumber} 关`;
+    : `${lesson.language === "cantonese" ? "粤语" : "英语"} · ${state.libraryReturn ? "单句练习" : `第 ${levelNumber} 关`}`;
   els.lineTitle.textContent = lesson.source === "toefl" ? toeflPlan[lesson.day - 1].word : lesson.scenarioName;
   els.targetLine.textContent = lesson.line;
   els.romanization.textContent = lesson.romanization;
@@ -1075,7 +1126,7 @@ function renderLesson() {
   els.transcript.textContent = phase === "listen" ? "听完后写下这句话。" : "准备好了，就说出这句话。";
   els.scoreValue.textContent = "--";
   els.dictationBox.hidden = phase !== "listen" || state.awaitingContinue;
-  els.dictationInput.value = "";
+  els.dictationInput.value = draft;
   els.continuePanel.hidden = !state.awaitingContinue;
   setPracticeControlsPaused(state.awaitingContinue);
   setRecordButtonText("开始跟读");
@@ -1098,7 +1149,7 @@ function renderLesson() {
   }).join("");
   document.querySelector("#vocabularyItems").innerHTML = vocabularyFor(lesson).map(([word, meaning], index) => `<div class="word-row"><button type="button" class="word-meaning" data-vocab="${index}" aria-expanded="false"><strong>${escapeHtml(word)}</strong><span data-gloss="${escapeHtml(meaning)}">中文释义</span></button><button type="button" class="icon-button" data-word-audio="${index}" aria-label="朗读 ${escapeHtml(word)}" title="朗读"><i data-lucide="volume-2"></i></button></div>`).join("");
   if (state.awaitingContinue) {
-    els.continueText.textContent = phase === "listen" ? "听辨已通过，下一步：跟读。" : `本关已过。下次复习：${state.stats.learning.records[lesson.id]?.due || "明天"}`;
+    els.continueText.textContent = phase === "listen" ? "听辨已通过，下一步：跟读。" : state.libraryReturn ? "本句已过，继续原来的课程。" : `本关已过。下次复习：${state.stats.learning.records[lesson.id]?.due || "明天"}`;
     document.querySelector("#continueLabel").textContent = phase === "listen" ? "听辨完成" : "本关已过";
   }
   drawWave(lesson.line.length);
@@ -1710,6 +1761,8 @@ function bindEvents() {
   els.dictationButton.addEventListener("click", startDictation);
   els.checkDictationButton.addEventListener("click", checkDictation);
   els.continueButton.addEventListener("click", continueToNextLevel);
+  document.querySelector("#returnToCourseButton").addEventListener("click", returnToCourse);
+  els.dictationInput.addEventListener("input", persistCursor);
   document.querySelector("#learnContinueButton").addEventListener("click", () => {
     const lesson = currentLesson();
     if (!lesson || state.phase !== "learn") return;
@@ -1746,6 +1799,7 @@ function bindEvents() {
   document.querySelector("#reviewList").addEventListener("click", event => {
     const button = event.target.closest("[data-review-id]");
     if (!button) return;
+    state.libraryReturn = null;
     state.studyMode = "review";
     state.reviewIds = [button.dataset.reviewId];
     selectLesson(findLesson(button.dataset.reviewId));
@@ -1762,6 +1816,7 @@ function bindEvents() {
     renderStats();
   });
   document.querySelector("#startToeflButton").addEventListener("click", () => {
+    state.libraryReturn = null;
     state.studyMode = "toefl";
     selectLesson(buildToeflLesson(state.toeflDay, state.toeflStage));
     showQuestView("practice");
@@ -1832,24 +1887,9 @@ function bindEvents() {
 
     const button = event.target.closest("[data-practice]");
     if (!button) return;
-    const lesson = lessons.find((item) => item.id === button.dataset.practice)
-      || toeflPlan.flatMap((day) => [0, 1, 2].map((stage) => buildToeflLesson(day.day, stage)))
-        .find((item) => item.id === button.dataset.practice);
+    const lesson = findLesson(button.dataset.practice);
     if (!lesson) return;
-    if (lesson.source === "toefl") {
-      state.studyMode = "toefl";
-      state.toeflDay = lesson.day;
-      state.toeflStage = lesson.stage;
-      selectLesson(lesson);
-      showQuestView("practice");
-      return;
-    }
-    els.languageSelect.value = lesson.language;
-    state.studyMode = "scene";
-    els.levelSelect.value = lesson.level;
-    els.scenarioSelect.value = lesson.scenario;
-    selectLesson(lesson);
-    showQuestView("practice");
+    beginLibraryPractice(lesson);
   });
 
   els.phraseList.addEventListener("keydown", (event) => {
@@ -1926,17 +1966,8 @@ function initProduct() {
   }
   const cursor = state.stats.learning.cursor;
   state.currentView = "practice";
-  state.studyMode = ["scene", "toefl", "review"].includes(cursor?.mode) ? cursor.mode : "scene";
-  els.languageSelect.value = cursor?.language || "english";
-  els.levelSelect.value = cursor?.level || "starter";
-  els.scenarioSelect.value = cursor?.scenario || "all";
-  state.reviewIds = (cursor?.reviewIds || []).filter(findLesson);
-  state.lessonId = cursor?.lessonId || null;
-  state.sessionDone = Boolean(cursor?.done);
-  state.phase = PHASES.includes(cursor?.phase) ? cursor.phase : "learn";
-  state.awaitingContinue = Boolean(cursor?.gate && state.stats.learning.records[state.lessonId]?.[state.phase]);
-  if (cursor && (state.sessionDone || currentLesson())) renderLesson();
-  else beginCourse();
+  state.libraryReturn = cursor?.libraryReturn || null;
+  restoreCursor(cursor);
   document.querySelector(".path-details").open = !window.matchMedia("(max-width: 720px)").matches;
   renderDialogue();
   renderPhrases();

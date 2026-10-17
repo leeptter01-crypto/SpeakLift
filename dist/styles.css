@@ -79,6 +79,11 @@ textarea { resize:vertical; }
 .lesson-stepper svg { width:14px; }
 .trainer-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .trainer-toolbar h2 { font-size:19px; }
+.workspace.single-practice { grid-template-columns:minmax(0,1fr); }
+.single-practice .trainer-card { width:100%; max-width:760px; margin-inline:auto; }
+.library-practice-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); padding-bottom:14px; font-size:13px; color:var(--teal); }
+.library-practice-bar button { display:inline-flex; align-items:center; gap:6px; min-height:36px; flex-shrink:0; }
+.library-practice-bar svg { width:16px; height:16px; }
 .trainer-toolbar .eyebrow { color:var(--teal); }
 .vocabulary-stage { padding:10px 0 12px; }
 .vocabulary-stage h3 { font-size:24px; margin-bottom:22px; }
