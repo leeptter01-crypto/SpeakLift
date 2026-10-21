@@ -21,11 +21,14 @@ export function createSpeechSession(Recognition, {
   let speaking = false;
   let heardSpeech = false;
   let restarts = 0;
+  let networkRetries = 0;
+  let status = "connecting";
   let startedAt = 0;
   let finishReason = "";
   const timers = new Map();
   const now = () => clock.Date ? clock.Date.now() : Date.now();
   const transcript = () => [committed, segment].filter(Boolean).join(" ").trim();
+  const reportState = value => { status = value; onState(value); };
 
   function clear(name) {
     clock.clearTimeout(timers.get(name));
@@ -50,6 +53,7 @@ export function createSpeechSession(Recognition, {
     if (!previous) return;
     previous.onresult = previous.onerror = previous.onend = null;
     previous.onspeechstart = previous.onspeechend = null;
+    previous.onstart = previous.onaudiostart = null;
     if (abort) {
       try { previous.abort(); } catch { /* Already stopped by the browser. */ }
     }
@@ -70,11 +74,11 @@ export function createSpeechSession(Recognition, {
     closing = true;
     finishReason = reason;
     clearTimers();
-    if (!engine || reason === "no-speech") {
-      complete();
+    if (!engine || reason === "no-speech" || (!heardSpeech && status !== "listening")) {
+      complete(reason === "no-speech" && networkRetries && status !== "listening" ? "network" : null);
       return;
     }
-    onState("processing");
+    reportState("processing");
     // stop() flushes the final hypothesis; abort() would discard it.
     later("final", () => complete(), timing.finalWaitMs);
     try { engine.stop(); } catch { complete(); }
@@ -98,6 +102,7 @@ export function createSpeechSession(Recognition, {
       return;
     }
     restarts += 1;
+    reportState("connecting");
     later("restart", connect, timing.restartDelayMs);
   }
 
@@ -111,8 +116,14 @@ export function createSpeechSession(Recognition, {
     current.continuous = true;
     current.interimResults = true;
     current.maxAlternatives = 1;
+    const listening = () => {
+      if (isCurrent() && !closing && status !== "listening") reportState("listening");
+    };
+    current.onstart = listening;
+    current.onaudiostart = listening;
     current.onspeechstart = () => {
       if (!isCurrent() || closing) return;
+      listening();
       heardSpeech = true;
       speaking = true;
       clear("no-speech");
@@ -129,6 +140,7 @@ export function createSpeechSession(Recognition, {
       const results = Array.from(event.results || []);
       segment = results.map(result => result[0]?.transcript?.trim() || "").filter(Boolean).join(" ");
       if (segment) {
+        listening();
         heardSpeech = true;
         clear("no-speech");
         if (!speaking) silence();
@@ -142,6 +154,13 @@ export function createSpeechSession(Recognition, {
       if (event.error === "no-speech") {
         // Some engines omit end after an error; retain the same attempt deadline.
         later("reconnect-fallback", reconnect, timing.restartGraceMs);
+      } else if (event.error === "network" && !heardSpeech && networkRetries === 0) {
+        // Only retry before speech: a broken mid-sentence capture must not be scored.
+        networkRetries += 1;
+        detach();
+        clear("reconnect-fallback");
+        reportState("retrying");
+        later("restart", connect, timing.restartGraceMs);
       } else {
         finishReason = "error";
         complete(event.error || "recognition-error");
@@ -157,7 +176,7 @@ export function createSpeechSession(Recognition, {
 
   function tick() {
     if (closing) return;
-    onTick(Math.max(0, Math.ceil((timing.maxMs - (now() - startedAt)) / 1000)));
+    onTick(Math.max(0, Math.ceil((timing.maxMs - (now() - startedAt)) / 1000)), status);
     later("tick", tick, 1000);
   }
 
@@ -166,7 +185,7 @@ export function createSpeechSession(Recognition, {
       if (active || closing) return;
       active = true;
       startedAt = now();
-      onState("listening");
+      reportState("connecting");
       later("limit", () => finish("limit"), timing.maxMs);
       later("no-speech", () => finish("no-speech"), timing.noSpeechMs);
       tick();
