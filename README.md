@@ -55,11 +55,19 @@ The browser test requires Playwright and a local static server at `http://127.0.
 
 See `docs/learning-layout-research.md` for reference findings and implementation choices. Lucide 0.468.0 is vendored in `dist/icons.js`; its license is retained alongside it.
 
-## Continuous Speech (v11)
+## Continuous Speech (v12)
 
-`dist/speech.mjs` manages one bounded listening attempt across browser recognition connections. It replaces interim hypotheses with each cumulative result snapshot instead of appending duplicate text. Brief engine disconnects reconnect within the original deadline; permission and network errors stop without a score. Navigating away, hiding the page, or logging out cancels capture and ignores delayed callbacks.
+`dist/speech.mjs` manages one bounded listening attempt across browser recognition connections. It replaces interim hypotheses with each cumulative result snapshot instead of appending duplicate text. Brief engine disconnects reconnect within the original deadline. A network failure before speech retries once; permission failures and mid-sentence network failures stop without a score. Navigating away, hiding the page, or logging out cancels capture and ignores delayed callbacks.
 
 Automatic or manual completion calls `stop()` to request the final transcript, then allows at most 1.5 seconds for final delivery before cleaning up. Native speech-start/end events keep a sentence open while speech is active; browsers without these events use transcript inactivity as a fallback. A score is submitted once per attempt, and passing still requires the explicit Continue action. Empty recognition does not count as a failed lesson. Sample audio buttons are disabled during microphone capture.
+
+The UI shows connecting until the recognition engine signals readiness. The observed live failure was a browser recognition service network error, not a disabled button. Retrying does not guarantee that this external service is reachable. On failure, the user can explicitly choose local recording/playback or copy the practice link. No additional cloud recognition provider is configured.
+
+`dist/recording.mjs` uses MediaRecorder for playback only. Audio remains in page memory, is never uploaded, and cannot pass a lesson or change its score. Recording stops at 30 seconds; permission waiting and finalization are bounded at 15 seconds and 1.5 seconds. Leaving the lesson, switching tabs, or logging out cancels capture, stops tracks, and discards the audio. Late permission responses are discarded too.
+
+Run `node --test tests/learning.test.mjs tests/speech.test.mjs tests/recording.test.mjs` for the 26 lifecycle/progression tests. Browser recovery flows were checked using mocked speech and recording devices in an isolated local test account at desktop, 390px, and 320px widths. These checks do not certify real microphone capture or third-party service availability.
+
+API references: [Web Speech API](https://webaudio.github.io/web-speech-api/) and [MediaStream Recording](https://www.w3.org/TR/mediastream-recording/).
 
 The implementation follows the [Web Speech API specification](https://webaudio.github.io/web-speech-api/) for continuous/interim results and stop-versus-abort behavior. Recognition accuracy and event timing remain browser/provider dependent; the automated tests use a mock and do not verify physical microphone capture.
 

@@ -1,7 +1,7 @@
 :root { color-scheme: light; --ink:#25352f; --muted:#68776f; --page:#f6f8f7; --panel:#fff; --teal:#177464; --teal-dark:#115949; --mint:#e5f3ec; --sky:#ebf2fc; --coral:#b64735; --gold:#efd875; --line:#dee5df; --radius:8px; font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif; font-size:16px; }
 * { box-sizing:border-box; letter-spacing:0; }
 [hidden] { display:none !important; }
-body { margin:0; min-width:320px; background:var(--page); color:var(--ink); }
+body { margin:0; min-width:0; background:var(--page); color:var(--ink); }
 button,input,select,textarea { font:inherit; }
 button { cursor:pointer; }
 a { color:inherit; text-decoration:none; }
@@ -113,6 +113,12 @@ textarea { resize:vertical; }
 .record.is-recording { animation:pulse 1.1s infinite; background:var(--coral); border-color:var(--coral); }
 .feedback-panel { display:flex; justify-content:space-between; gap:18px; padding-top:16px; border-top:1px solid var(--line); }
 .feedback-panel p { margin:0; font-size:13px; color:var(--muted); }
+.speech-recovery { border-top:1px solid var(--line); padding-top:16px; display:grid; gap:12px; }
+.speech-recovery strong { font-size:14px; }
+.speech-recovery p { margin:0; font-size:13px; color:var(--muted); }
+.recovery-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.recovery-actions button { min-height:44px; }
+.speech-recovery audio { display:block; width:100%; min-width:0; height:54px; }
 .score-badge { min-width:65px; text-align:right; }
 .score-badge strong { display:block; font-size:24px; color:var(--teal); }
 .score-badge span { font-size:10px; color:var(--muted); }

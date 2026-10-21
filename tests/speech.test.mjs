@@ -181,8 +181,8 @@ test("cancellation ignores queued results, restarts, and finalization callbacks"
   }
 });
 
-test("permissions, capture, network, and start failures terminate without silent retries", () => {
-  for (const error of ["not-allowed", "service-not-allowed", "audio-capture", "network", "aborted"]) {
+test("permissions, capture, and start failures terminate without silent retries", () => {
+  for (const error of ["not-allowed", "service-not-allowed", "audio-capture", "aborted"]) {
     const h = harness();
     h.engines[0].onerror({ error });
     h.clock.tick(60000);
@@ -191,6 +191,60 @@ test("permissions, capture, network, and start failures terminate without silent
     assert.equal(h.pending.size, 0);
   }
   assert.equal(harness({ startError: true }).finished[0].error, "start-failed");
+});
+
+test("connecting does not claim to be listening before the browser starts", () => {
+  const h = harness();
+  assert.deepEqual(h.states, ["connecting"]);
+  h.engines[0].onstart();
+  h.engines[0].onaudiostart();
+  assert.deepEqual(h.states, ["connecting", "listening"]);
+  h.session.cancel();
+});
+
+test("network errors before speech retry once, ignore stale events and release for another click", () => {
+  const h = harness();
+  const staleEnd = h.engines[0].onend;
+  h.engines[0].onerror({ error: "network" });
+  staleEnd();
+  assert.equal(h.states.at(-1), "retrying");
+  h.clock.tick(SPEECH_TIMING.restartGraceMs);
+  assert.equal(h.engines.length, 2);
+  h.engines[1].onerror({ error: "network" });
+  h.clock.tick(60000);
+  assert.equal(h.finished[0].error, "network");
+  assert.equal(h.finished.length, 1);
+  assert.equal(h.pending.size, 0);
+  const next = harness();
+  results(next.engines[0], ["Hello", true]);
+  next.session.finish();
+  next.engines[0].onend();
+  assert.equal(next.finished[0].error, null);
+});
+
+test("network interruption after speech is never scored or retried", () => {
+  const h = harness();
+  results(h.engines[0], ["Hello", false]);
+  h.engines[0].onerror({ error: "network" });
+  h.clock.tick(60000);
+  assert.equal(h.engines.length, 1);
+  assert.equal(h.finished[0].error, "network");
+});
+
+test("a network retry preserves the initial deadline and can be cancelled immediately", () => {
+  const h = harness();
+  h.clock.tick(11000);
+  h.engines[0].onerror({ error: "network" });
+  h.clock.tick(1000);
+  assert.equal(h.finished.length, 1);
+  assert.equal(h.engines.length, 1);
+  assert.equal(h.pending.size, 0);
+  const next = harness();
+  next.engines[0].onerror({ error: "network" });
+  next.session.finish();
+  next.clock.tick(60000);
+  assert.equal(next.finished.length, 1);
+  assert.equal(next.engines.length, 1);
 });
 
 test("repeated engine disconnects are bounded and cannot restart indefinitely", () => {
