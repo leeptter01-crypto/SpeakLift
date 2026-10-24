@@ -41,6 +41,7 @@ export function createLocalRecording({
     phase = "processing";
     clearTimers();
     onState(phase);
+    if (phase !== "processing") return;
     later(() => finish("recording-timeout"), timing.finalMs);
     try { recorder.stop(); } catch { finish("recording-failed"); }
     stopTracks(stream);
@@ -57,6 +58,7 @@ export function createLocalRecording({
       if (!mediaDevices?.getUserMedia || !Recorder) { finish("unsupported"); return; }
       phase = "permission";
       onState(phase);
+      if (phase !== "permission") return;
       later(() => finish("permission-timeout"), timing.permissionMs);
       try {
         const acquired = await mediaDevices.getUserMedia({ audio: true });
@@ -72,6 +74,7 @@ export function createLocalRecording({
         if (phase === "done") return;
         phase = "recording";
         onState(phase);
+        if (phase !== "recording") return;
         later(stop, timing.maxMs);
         tick();
       } catch (error) { if (phase !== "done") finish(error?.name === "NotAllowedError" ? "not-allowed" : "recording-failed"); }

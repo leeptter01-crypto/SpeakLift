@@ -10,6 +10,7 @@ const statsKey = `speaklift.stats.${key}`;
   const browser = await chromium.launch({ headless: true, channel: process.env.SPEAKLIFT_BROWSER || 'msedge' });
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block', reducedMotion: 'reduce' });
+    await context.addInitScript(require('./capture-fixture.cjs'));
     await context.addInitScript(({ key }) => {
       localStorage.setItem('speaklift.accounts', JSON.stringify({ [key]: { displayName: '测试学习者', method: 'email', identifier: 'qa@speaklift.test' } }));
       sessionStorage.setItem('speaklift.sessionUser', key);
@@ -47,7 +48,8 @@ const statsKey = `speaklift.stats.${key}`;
     assert.equal(await page.locator('#lineTitle').textContent(), '打招呼');
     await page.locator('#continueButton').click();
     await page.locator('#recordButton').click();
-    await page.waitForFunction(() => document.querySelector('#recordButtonLabel').textContent === '重新跟读', { timeout: 14000 });
+    await page.locator('#recordButton').click();
+    await page.waitForFunction(() => document.querySelector('#recordButtonLabel').textContent === '重新跟读');
     assert.equal(await page.locator('#recordButton').isDisabled(), false);
     await page.locator('#recordButton').click();
     await page.evaluate(() => window.testRecognition.onresult({ results: [[{ transcript: 'Hello, nice to meet you.' }]] }));
@@ -226,7 +228,7 @@ const statsKey = `speaklift.stats.${key}`;
     await page.locator('#continueButton').click();
     assert.equal(await page.locator('#sessionComplete').isVisible(), true);
     assert.deepEqual(errors, []);
-    console.log('PASS: vocabulary, hidden meanings, listen/speak separation, refresh gates, 12-second no-speech timeout, automatic speech scoring, Continue, review queue, empty state, library return/drafts/refresh, 1440/390/320 layouts. Speech engine mocked; no real microphone verified.');
+    console.log('PASS: vocabulary, hidden meanings, listen/speak separation, refresh gates, unified capture, automatic speech scoring, Continue, review queue, empty state, library return/drafts/refresh, 1440/390/320 layouts. Audio and speech engines mocked.');
     await context.close();
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

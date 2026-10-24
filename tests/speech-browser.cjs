@@ -11,6 +11,7 @@ const target = 'I will send you the update before five.';
   const browser = await chromium.launch({ headless: true, channel: process.env.SPEAKLIFT_BROWSER || 'msedge' });
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block', reducedMotion: 'reduce' });
+    await context.addInitScript(require('./capture-fixture.cjs'));
     await context.addInitScript(({ key }) => {
       localStorage.setItem('speaklift.accounts', JSON.stringify({ [key]: { displayName: '语音测试', method: 'email' } }));
       sessionStorage.setItem('speaklift.sessionUser', key);
@@ -48,7 +49,7 @@ const target = 'I will send you the update before five.';
     assert.equal(await page.locator('#listenButton').isDisabled(), true);
     await page.evaluate(() => window.testRecognition.onspeechstart());
     await page.clock.runFor(7000);
-    assert.equal(await page.locator('#recordButtonLabel').textContent(), '结束并判断');
+    assert.equal(await page.locator('#recordButtonLabel').textContent(), '结束跟读');
     await page.evaluate(() => window.testRecognition.onresult({ results: [[{ transcript: 'I will send you' }]] }));
     assert.equal(await attempts(), 0);
     await page.screenshot({ path: 'test-results/desktop-continuous-speech.png', fullPage: true });
@@ -102,15 +103,30 @@ const target = 'I will send you the update before five.';
     assert.equal(await page.locator('#continuePanel').isVisible(), true);
     assert.equal(await attempts(), 1);
 
-    // No speech is not a failed answer; fatal permission errors do not retry automatically.
+    // Recognition failure never interrupts recording or grades the attempt.
     await resetLesson();
     await page.locator('#recordButton').click();
     await page.clock.runFor(12000);
+    assert.equal(await page.locator('#recordButtonLabel').textContent(), '结束跟读');
+    await page.clock.runFor(18000);
     assert.equal(await page.locator('#recordButtonLabel').textContent(), '重新跟读');
     assert.equal(await attempts(), 0);
     await page.locator('#recordButton').click();
-    await page.evaluate(() => window.testRecognition.onerror({ error: 'not-allowed' }));
+    await page.evaluate(() => window.testRecognition.onerror({ error: 'network' }));
+    await page.clock.runFor(1000);
+    await page.evaluate(() => window.testRecognition.onerror({ error: 'network' }));
+    assert.match(await page.locator('#transcript').textContent(), /录音仍在继续/);
+    assert.equal(await page.evaluate(() => window.testRecorder.state), 'recording');
+    await page.locator('#recordButton').click();
+    assert.equal(await page.locator('#recordingPlayback').isVisible(), true);
+    assert.equal(await page.locator('#localRecordButton').count(), 0);
+    assert.equal(await page.locator('#copyPracticeLink').count(), 0);
+    assert.match(await page.locator('#transcript').textContent(), /本次未计分/);
+    assert.equal(await page.evaluate(() => window.captureCount), 2);
+    await page.evaluate(() => { window.denyCapture = true; });
+    await page.locator('#recordButton').click();
     assert.match(await page.locator('#transcript').textContent(), /麦克风未获授权/);
+    await page.evaluate(() => { window.denyCapture = false; });
     assert.equal(await attempts(), 0);
 
     // Returning to another view cancels capture and cannot submit a delayed result.
@@ -132,7 +148,7 @@ const target = 'I will send you the update before five.';
     }, target);
     await page.clock.runFor(30000);
     assert.equal(await page.evaluate(() => window.testRecognition.stopped), true);
-    assert.equal(await page.locator('#recordButtonLabel').textContent(), '正在判断…');
+    assert.equal(await page.locator('#recordButtonLabel').textContent(), '正在处理…');
     await page.clock.runFor(1500);
     assert.equal(await page.locator('#continuePanel').isVisible(), true);
     assert.equal(await attempts(), 1);

@@ -113,12 +113,9 @@ textarea { resize:vertical; }
 .record.is-recording { animation:pulse 1.1s infinite; background:var(--coral); border-color:var(--coral); }
 .feedback-panel { display:flex; justify-content:space-between; gap:18px; padding-top:16px; border-top:1px solid var(--line); }
 .feedback-panel p { margin:0; font-size:13px; color:var(--muted); }
-.speech-recovery { border-top:1px solid var(--line); padding-top:16px; display:grid; gap:12px; }
-.speech-recovery strong { font-size:14px; }
-.speech-recovery p { margin:0; font-size:13px; color:var(--muted); }
-.recovery-actions { display:flex; flex-wrap:wrap; gap:10px; }
-.recovery-actions button { min-height:44px; }
-.speech-recovery audio { display:block; width:100%; min-width:0; height:54px; }
+.recording-playback { border-top:1px solid var(--line); padding-top:16px; display:grid; gap:10px; min-width:0; }
+.recording-playback strong { font-size:14px; }
+.recording-playback audio { display:block; width:100%; min-width:0; height:54px; }
 .score-badge { min-width:65px; text-align:right; }
 .score-badge strong { display:block; font-size:24px; color:var(--teal); }
 .score-badge span { font-size:10px; color:var(--muted); }
