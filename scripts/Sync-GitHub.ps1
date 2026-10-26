@@ -1,5 +1,5 @@
 param(
-  [string]$GitHubRepoUrl = "https://github.com/vlipnjohn7-coder/SpeakLift.git"
+  [string]$GitHubRepoUrl = "https://github.com/leeptter01-crypto/SpeakLift.git"
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,4 +12,11 @@ if (-not (git remote | Select-String -Pattern "^github$" -Quiet)) {
   git remote set-url github $GitHubRepoUrl
 }
 
-git push -u github main
+if ($LASTEXITCODE -ne 0) {
+  throw "Could not configure the GitHub remote. No code was pushed."
+}
+
+git push github main
+if ($LASTEXITCODE -ne 0) {
+  throw "GitHub sync failed. Check authentication and compare branch history; do not force-push."
+}

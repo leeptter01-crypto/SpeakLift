@@ -1,6 +1,8 @@
-# SpeakLift
+# SpeakLift - 语言学习
 
 SpeakLift is a bilingual speaking-practice app for English and Cantonese beginners.
+
+Project progress and remaining work are tracked in [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md).
 
 ## Current App
 
@@ -65,7 +67,7 @@ Automatic or manual completion calls `stop()` to request the final transcript, t
 
 `dist/recording.mjs` uses MediaRecorder for playback. Its audio blob remains in page memory and is not uploaded by the app. Native browser speech recognition may separately use the browser's recognition service. Recording alone cannot pass a lesson or change its score. Recording stops at 30 seconds; permission waiting and finalization are bounded at 15 seconds and 1.5 seconds. Leaving the lesson, switching tabs, retrying, or logging out cancels capture, stops tracks, and discards the audio. Late permission responses are discarded too.
 
-The 36 lifecycle/progression tests passed. The unified button, retained playback after recognition errors, automatic scoring, explicit Continue, next-lesson cleanup, and 1440/390/320px layouts were checked through browser automation using isolated test data and mocked devices. The user confirmed audible physical recording/playback in v12; that previous device check does not certify the newly unified v13 path or third-party recognition availability. The standalone Playwright suites were updated with a shared recording fixture; they were not rerun as standalone scripts during this browser-tool verification.
+The 36 lifecycle/progression tests passed. The unified button, retained playback after recognition errors, automatic scoring, explicit Continue, next-lesson cleanup, and 1440/390/320px layouts were checked through browser automation using isolated test data and mocked devices. The user subsequently confirmed that v13 can record. This does not certify third-party recognition availability or acoustic pronunciation accuracy. The standalone Playwright suites were updated with a shared recording fixture; they were not rerun as standalone scripts during this browser-tool verification.
 
 API references: [Web Speech API](https://webaudio.github.io/web-speech-api/) and [MediaStream Recording](https://www.w3.org/TR/mediastream-recording/).
 
@@ -94,7 +96,7 @@ The launcher starts a local server and opens SpeakLift in an app-style browser w
 Current GitHub repository:
 
 ```text
-https://github.com/vlipnjohn7-coder/SpeakLift
+https://github.com/leeptter01-crypto/SpeakLift
 ```
 
 To sync from this computer with normal Git credentials, run:
@@ -104,3 +106,5 @@ powershell -ExecutionPolicy Bypass -File D:\SpeakLift\scripts\Sync-GitHub.ps1
 ```
 
 If the repository is private or requires authentication, sign in through Git credential manager or use the GitHub plugin.
+
+The repository owner is `leeptter01-crypto`. Verify the signed-in account before uploading. A rejected non-fast-forward push means the histories need to be compared and reconciled; do not force-push over remote work.
