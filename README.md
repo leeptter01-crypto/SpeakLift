@@ -7,6 +7,7 @@ Project progress and remaining work are tracked in [docs/PROJECT-STATUS.md](docs
 ## Current App
 
 - Product files: `D:\SpeakLift`
+- Android preview: `releases/SpeakLift-0.1.0-preview.apk` (Android 8.0+, debug-signed test build; see [Android build and limitations](docs/ANDROID.md))
 - Web entry: `dist/index.html`
 - Published site: `https://speaklift-yi-20260923.johnleebob.chatgpt.site`
 - Account mode: email, phone, or Google account identifier plus password; independent from ChatGPT login
@@ -35,6 +36,7 @@ Project progress and remaining work are tracked in [docs/PROJECT-STATUS.md](docs
 - Local progress tracking by account
 - PWA install support for mobile and desktop browsers
 - Windows desktop app launcher
+- Android APK project with bundled offline lessons, restricted microphone permissions and native background recording cleanup
 
 ## Progress Model (v8)
 

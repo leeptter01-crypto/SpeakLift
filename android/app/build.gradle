@@ -1,0 +1,50 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.speaklift.app'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+    defaultConfig {
+        applicationId 'com.speaklift.app'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '0.1.0-preview'
+    }
+    buildFeatures { buildConfig true }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    sourceSets.main.assets.srcDir layout.buildDirectory.dir('generated/webAssets')
+}
+
+// Package a fresh source snapshot; no hosted URL or service-worker cache is required.
+tasks.register('syncWebAssets', Sync) {
+    from(rootProject.file('../dist')) { into 'web' }
+    into layout.buildDirectory.dir('generated/webAssets')
+    doLast {
+        def web = layout.buildDirectory.dir('generated/webAssets/web').get().asFile
+        def app = new File(web, 'app.js')
+        def source = app.getText('UTF-8')
+        def marker = 'function registerServiceWorker() {'
+        if (!source.contains(marker)) throw new GradleException('Web lifecycle changed; review Android packaging.')
+        source = source.replace(marker, marker + '\n  return; // APK assets are already offline and versioned.\n')
+        source += '\nwindow.addEventListener("speaklift:pause", () => { stopRecognition(); cancelPlayback(); });\n'
+        source += 'els.installAppButton.hidden = true;\n'
+        source += 'document.querySelector(".auth-copy p:last-child").textContent = "安卓测试版 · 账号和学习进度仅保存在本机。";\n'
+        source += 'document.querySelector(".auth-note").textContent = "验证码为本机演示，不发送短信或邮件；Google 邮箱登记不等于 Google 授权登录。请使用测试资料和专用密码。卸载应用会清除本机进度。";\n'
+        app.setText(source, 'UTF-8')
+        def html = new File(web, 'index.html')
+        html.setText(html.getText('UTF-8').replace('</head>', '''
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'">
+    <style>.topbar > .brand { display: none; } #installAppButton { display: none !important; }</style>
+  </head>'''), 'UTF-8')
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'syncWebAssets' }
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+    testImplementation 'junit:junit:4.13.2'
+}
